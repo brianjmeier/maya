@@ -1,7 +1,7 @@
 # Maya Standup Timer Privacy Policy
 
 **Effective date:** August 4, 2026
-**Last updated:** August 4, 2026
+**Last updated:** August 5, 2026
 
 Maya Standup Timer is a local-only Chrome extension that places a draggable standup countdown over a browser tab selected by the user. This policy explains what information the extension handles and how it is used.
 
@@ -11,8 +11,9 @@ Maya Standup Timer stores only the information needed to operate the timer:
 
 - Countdown storage schema version, status, duration, remaining time or deadline, revision, and update timestamp
 - The timer overlay's position on screen
+- The sound mute preference
 
-This information is stored in `chrome.storage.local` within your Chrome profile. It stays on your device and is used only to keep the countdown working and remember where you placed the overlay.
+This information is stored in `chrome.storage.local` within your Chrome profile. It stays on your device and is used only to keep the countdown working and remember where you placed the overlay and whether sound is muted.
 
 ## Information we do not collect
 
@@ -33,7 +34,7 @@ Maya Standup Timer uses these Chrome permissions:
 
 - **`activeTab`** provides temporary access to the tab only after you click the extension toolbar button.
 - **`scripting`** places the packaged timer interface into that selected tab.
-- **`storage`** saves timer state and overlay position locally on your device.
+- **`storage`** saves timer state, overlay position, and the mute preference locally on your device.
 
 The extension uses access to the selected tab only to display and operate its timer interface. It does not read, copy, store, or transmit the page's content or URL.
 
@@ -47,7 +48,7 @@ Maya Standup Timer does not share or sell information. It does not use informati
 
 ## Retention and deletion
 
-Timer state and overlay position remain in your Chrome profile until you clear the extension's stored data or uninstall the extension. Because this information is never transmitted to us, we cannot view, retrieve, or delete it remotely.
+Timer state, overlay position, and the mute preference remain in your Chrome profile until you clear the extension's stored data or uninstall the extension. Because this information is never transmitted to us, we cannot view, retrieve, or delete it remotely.
 
 ## Children’s privacy
 

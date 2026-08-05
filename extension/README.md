@@ -66,7 +66,7 @@ working.
   on the local device.
 
 The extension requests no persistent host permissions; its only web-accessible
-resources are Maya's six packaged artwork frames. It has no content scripts,
+resources are Maya's thirteen packaged artwork frames. It has no content scripts,
 analytics, advertising, accounts, remote code, or network requests. The release privacy statement lives
 at [`../store-listing/privacy-policy.md`](../store-listing/privacy-policy.md).
 
@@ -80,5 +80,5 @@ npm test
 
 The extension tests validate the production manifest, icon references and exact
 dimensions, absence of dev origins and remote executable code, timer and
-overtime behavior, runtime messaging, the vector rig and its animation engine,
-the sound engine, and the overlay cleanup contract.
+overtime behavior, runtime messaging, the artwork animation engine, the sound
+engine, and the overlay cleanup contract.

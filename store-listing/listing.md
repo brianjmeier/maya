@@ -8,24 +8,25 @@ This copy is based on the Manifest V3 package in `standup-timer/extension/`. Rev
 Maya Standup Timer
 
 **Short description**
-Keep standups moving with Maya, a draggable timer that stays over your meeting or board.
+Keep standups moving with Maya, a lively animated timekeeper who stays over your meeting or board.
 
 **Detailed description**
 
 Keep the timer visible without leaving the tab where your meeting or board is open.
 
-Click Maya Standup Timer in the Chrome toolbar to place a compact, draggable countdown over the current page. Start or pause the timer, add or subtract 30 seconds, and move it wherever it stays useful without covering your work.
+Click Maya Standup Timer in the Chrome toolbar to place a compact, draggable timebox over the current page. Maya stays alive while you work—breathing, glancing, reacting, and speaking through captions as the clock runs down.
 
-Maya Standup Timer is deliberately focused:
+Maya Standup Timer stays deliberately focused:
 
-- A countdown that floats above the tab you choose
 - Start, pause, resume, reset, and quick ±30-second controls
-- One-minute, 90-second, and two-minute presets plus exact minutes and seconds
-- A draggable position that is remembered locally
-- Timer state that remains available between uses
-- No account, analytics, advertising, or network connection
+- 1:00, 1:30, and 2:00 presets, a typeable time display, and hold-to-repeat ±15-second fine tuning
+- Overtime that counts up instead of closing, with reactions from Maya and a +30-second rescue
+- Local sound cues at 30 seconds, through the final ticks, at zero, and during overtime, with a remembered mute control
+- A draggable position and timer state that are remembered locally and synchronized across open overlays
+- Reduced-motion support
+- No account, analytics, advertising, tracking, or network connection
 
-The extension runs only after you click its toolbar button. It does not read, collect, or transmit page content, URLs, browsing history, or personal information.
+The extension runs only after you click its toolbar button. It does not read, collect, or transmit page content, URLs, browsing history, or personal information. All artwork, animation, captions, and audio are packaged or generated locally.
 
 **Category**
 Productivity → Workflow & Planning
@@ -60,7 +61,7 @@ Grants temporary access only after the user clicks the extension toolbar button,
 Injects the packaged timer overlay into the active tab after the user explicitly clicks the extension toolbar button. The injected code only creates and controls the timer interface.
 
 **`storage`**
-Stores the countdown state and draggable overlay position on the user's device so the timer survives extension service-worker restarts and remembers its position between uses.
+Stores the countdown state, draggable overlay position, and mute preference on the user's device so the timer survives extension service-worker restarts and remembers its settings between uses.
 
 ### Remote code
 
@@ -78,6 +79,7 @@ The extension stores only operational timer data in `chrome.storage.local`:
 
 - Countdown storage schema version, status, duration, remaining time or deadline, revision, and update timestamp
 - Overlay position on screen
+- Mute preference
 
 This information stays on the user's device. It is not sent to the developer or any third party.
 
@@ -129,31 +131,29 @@ No account, credentials, payment, companion application, or network access is re
 3. Click the **Maya Standup Timer** toolbar button.
 4. Confirm that the timer overlay appears over the current page.
 5. Drag the overlay by its drag area and confirm that it can be repositioned.
-6. Open **Set**, select a preset, then enter an exact minutes-and-seconds value and confirm that the display updates.
+6. Open **Set**, select a preset, type an exact time in the large readout, and use the ±15-second stepper. Confirm that each change updates the display immediately.
 7. Click **Start**, wait several seconds, and confirm that the countdown decreases.
 8. Click **Pause**, then **Resume**, and confirm that the timer behaves accordingly.
-9. Use **−30s** and **+30s** and confirm that the remaining time changes, then use **Reset** and confirm that the configured duration returns.
-10. Click the red **Hang up** control, reopen the overlay from the toolbar, and confirm that the timer state and saved position remain available.
-11. Reload the page and reopen the overlay to confirm the locally stored state persists.
+9. Use **−30s** and **+30s** and confirm that the remaining time changes. Use the speaker control to mute and unmute local sound cues.
+10. Let a short timer reach zero. Confirm that the display counts upward in red, Maya reacts, and **+30s** resumes a 30-second countdown.
+11. Use **Reset** and confirm that the configured duration returns.
+12. Click the red **Hang up** control, reopen the overlay from the toolbar, and confirm that the timer state, mute setting, and saved position remain available.
+13. Reload the page and reopen the overlay to confirm the locally stored settings persist.
 
 Expected behavior on protected pages: Chrome does not permit extensions to inject into pages such as `chrome://` URLs or the Chrome Web Store. The toolbar shows a failure indicator instead of injecting the overlay.
 
 ## Final source audit
 
-Audited against the production extension and release ZIP on August 4, 2026:
+Audited against the Maya Standup Timer 1.1.0 production extension and release ZIP on August 5, 2026:
 
 - Manifest V3 permissions are exactly `activeTab`, `scripting`, and `storage`, with no host permissions or content scripts.
 - All executable code and Maya artwork are packaged locally.
 - The code contains no `fetch`, XHR, WebSocket, beacon, analytics SDK, remote script, page-content extraction, or URL/history storage.
-- `chrome.storage.local` is limited to `timerState` and `overlayPosition`.
+- `chrome.storage.local` is limited to `timerState`, `overlayPosition`, and `soundMuted`.
 - Manifest icons and packaged assets exist, and the production package tests pass.
 
 No mismatch remains between the final extension source and the claims in this listing or privacy policy.
 
-## Remaining external submission blockers
+## Submission status
 
-- Host `privacy-policy.html` at a stable public HTTPS URL and add that exact URL to the Dashboard.
-- Register or confirm the owner Chrome Web Store developer account, pay the displayed one-time fee if needed, enable 2-Step Verification, and verify its contact email.
-- Capture at least one real 1280×800 or 640×400 product screenshot and create the required 440×280 small promo tile. The packaged 128×128 store icon already exists.
-- Add a real support URL only if one exists; otherwise use Chrome Web Store's built-in support/contact facilities.
-- Have the account owner review the declarations and explicitly choose visibility plus deferred versus automatic publishing before submission.
+Version 1.1.0 was submitted to Chrome Web Store review on August 5, 2026. The draft includes four 1280×800 screenshots, the 440×280 small promo tile, the packaged 128×128 store icon, updated privacy disclosures, and updated reviewer instructions. Automatic publishing after approval is enabled.

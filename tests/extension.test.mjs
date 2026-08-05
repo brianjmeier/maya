@@ -34,7 +34,7 @@ test("manifest is a self-contained, narrow-permission MV3 package", async () => 
   assert.doesNotMatch(manifestSource, /localhost|127\.0\.0\.1|<all_urls>/);
 });
 
-test("manifest icons and all six Maya frames exist", async () => {
+test("manifest icons and all thirteen Maya frames exist", async () => {
   const manifest = JSON.parse(await source("manifest.json"));
 
   for (const size of [16, 32, 48, 128]) {
