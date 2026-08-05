@@ -73,6 +73,10 @@ npm run extension:verify
 
 Generated release artifacts are written to `release/`. Extension implementation details live in [`extension/README.md`](extension/README.md), and the exploratory Google Meet direction lives in [`docs/google-meet-v2.md`](docs/google-meet-v2.md).
 
+## Acknowledgments
+
+Maya's manga aesthetic was inspired by [REDDITARUN](https://github.com/REDDITARUN), a coworker who turns the funny, chaotic moments of working together into manga-style comics.
+
 ## License
 
 [MIT](LICENSE) © 2026 Brian Meier
