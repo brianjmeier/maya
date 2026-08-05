@@ -29,6 +29,7 @@ export function createDefaultTimerState(now = Date.now()) {
     durationMs: DEFAULT_DURATION_MS,
     deadlineEpochMs: null,
     pausedRemainingMs: DEFAULT_DURATION_MS,
+    doneAtEpochMs: null,
     revision: 0,
     updatedAt: now,
   };
@@ -40,6 +41,14 @@ export function remainingFromTimerState(state, now = Date.now()) {
   }
 
   return Math.max(0, state.pausedRemainingMs ?? state.durationMs ?? 0);
+}
+
+export function overtimeFromTimerState(state, now = Date.now()) {
+  if (state.status !== "done" || !Number.isFinite(state.doneAtEpochMs)) {
+    return 0;
+  }
+
+  return Math.max(0, now - state.doneAtEpochMs);
 }
 
 export function normalizeTimerState(candidate, now = Date.now()) {
@@ -64,11 +73,15 @@ export function normalizeTimerState(candidate, now = Date.now()) {
           : durationMs,
       ),
     ),
+    doneAtEpochMs: Number.isFinite(candidate.doneAtEpochMs)
+      ? candidate.doneAtEpochMs
+      : null,
     revision: Number.isSafeInteger(candidate.revision) ? candidate.revision : 0,
     updatedAt: Number.isFinite(candidate.updatedAt) ? candidate.updatedAt : now,
   };
 
   if (normalized.status === "running") {
+    normalized.doneAtEpochMs = null;
     if (!normalized.deadlineEpochMs) {
       return { ...normalized, status: "idle", pausedRemainingMs: durationMs };
     }
@@ -79,8 +92,13 @@ export function normalizeTimerState(candidate, now = Date.now()) {
         status: "done",
         deadlineEpochMs: null,
         pausedRemainingMs: 0,
+        doneAtEpochMs: normalized.deadlineEpochMs,
       };
     }
+  }
+
+  if (normalized.status !== "done") {
+    normalized.doneAtEpochMs = null;
   }
 
   if (normalized.status === "idle") {
@@ -110,6 +128,9 @@ export function applyTimerAction(
       status: "done",
       deadlineEpochMs: null,
       pausedRemainingMs: 0,
+      doneAtEpochMs: Number.isFinite(state.deadlineEpochMs)
+        ? state.deadlineEpochMs
+        : now,
       revision: nextRevision(state),
       updatedAt: now,
     };
@@ -121,6 +142,7 @@ export function applyTimerAction(
       status: "idle",
       deadlineEpochMs: null,
       pausedRemainingMs: state.durationMs,
+      doneAtEpochMs: null,
       revision: nextRevision(state),
       updatedAt: now,
     };
@@ -134,6 +156,7 @@ export function applyTimerAction(
       durationMs,
       deadlineEpochMs: null,
       pausedRemainingMs: durationMs,
+      doneAtEpochMs: null,
       revision: nextRevision(state),
       updatedAt: now,
     };
@@ -147,6 +170,7 @@ export function applyTimerAction(
         status: remainingMs > 0 ? "paused" : "done",
         deadlineEpochMs: null,
         pausedRemainingMs: remainingMs,
+        doneAtEpochMs: remainingMs > 0 ? null : now,
         revision: nextRevision(state),
         updatedAt: now,
       };
@@ -159,13 +183,28 @@ export function applyTimerAction(
       status: "running",
       deadlineEpochMs: now + remainingMs,
       pausedRemainingMs: remainingMs,
+      doneAtEpochMs: null,
       revision: nextRevision(state),
       updatedAt: now,
     };
   }
 
   const adjustmentMs = action === "add-30" ? 30_000 : -30_000;
-  if (state.status === "idle" || state.status === "done") {
+  if (state.status === "done") {
+    if (action === "subtract-30") return state;
+
+    return {
+      ...state,
+      status: "running",
+      deadlineEpochMs: now + 30_000,
+      pausedRemainingMs: 30_000,
+      doneAtEpochMs: null,
+      revision: nextRevision(state),
+      updatedAt: now,
+    };
+  }
+
+  if (state.status === "idle") {
     const durationMs = clampDuration(state.durationMs + adjustmentMs);
     return {
       ...state,
@@ -173,6 +212,7 @@ export function applyTimerAction(
       durationMs,
       deadlineEpochMs: null,
       pausedRemainingMs: durationMs,
+      doneAtEpochMs: null,
       revision: nextRevision(state),
       updatedAt: now,
     };
@@ -188,6 +228,7 @@ export function applyTimerAction(
     deadlineEpochMs:
       state.status === "running" && remainingMs > 0 ? now + remainingMs : null,
     pausedRemainingMs: remainingMs,
+    doneAtEpochMs: remainingMs > 0 ? null : now,
     revision: nextRevision(state),
     updatedAt: now,
   };
