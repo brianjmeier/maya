@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="extension/icons/icon-128.png" width="128" height="128" alt="Maya timer icon">
+</p>
+
 # Maya
 
 Maya is a lively manga standup timer that stays visible over the meeting or board you are already using. She holds the clock, reacts as the timebox drains, speaks through Meet-style captions, and keeps the product deliberately focused on one job: the timer.
