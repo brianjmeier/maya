@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import {
   DEFAULT_DURATION_MS,
   MAX_DURATION_MS,
@@ -28,11 +28,13 @@ test("manifest is a self-contained, narrow-permission MV3 package", async () => 
   assert.equal(manifest.description.length <= 132, true);
   assert.equal("host_permissions" in manifest, false);
   assert.equal("content_scripts" in manifest, false);
-  assert.equal("web_accessible_resources" in manifest, false);
+  assert.deepEqual(manifest.web_accessible_resources, [
+    { resources: ["assets/maya-*.webp"], matches: ["http://*/*", "https://*/*"] },
+  ]);
   assert.doesNotMatch(manifestSource, /localhost|127\.0\.0\.1|<all_urls>/);
 });
 
-test("manifest icons exist at every declared size", async () => {
+test("manifest icons and all six Maya frames exist", async () => {
   const manifest = JSON.parse(await source("manifest.json"));
 
   for (const size of [16, 32, 48, 128]) {
@@ -42,6 +44,10 @@ test("manifest icons exist at every declared size", async () => {
     assert.equal(bytes.toString("ascii", 1, 4), "PNG");
     assert.equal(bytes.readUInt32BE(16), size);
     assert.equal(bytes.readUInt32BE(20), size);
+  }
+
+  for (const frame of ["focused", "blink", "glance", "nod", "warning", "celebrate"]) {
+    await access(new URL(`assets/maya-${frame}.webp`, extensionUrl));
   }
 });
 
@@ -137,23 +143,29 @@ test("hitting zero starts overtime instead of ending the session", () => {
   assert.equal(remainingFromTimerState(again, now + 24_000), 10_000);
 });
 
-test("overlay is a timer-only Meet-style surface with a living Maya rig", async () => {
+test("overlay is a timer-only Meet-style surface with a living Maya", async () => {
   const overlay = await source("overlay.js");
 
-  // vector rig replaces raster frames
-  assert.match(overlay, /<svg class="scene"/);
-  assert.match(overlay, /id="maya"/);
-  assert.match(overlay, /id="timer-body"/);
-  for (const part of ["head", "bun", "brow-l", "brow-r", "pupil-l", "pupil-r", "lid-l", "lid-r", "mouth", "earring-l", "speedlines", "confetti", "knob"]) {
-    assert.match(overlay, new RegExp(`id="${part}"`));
+  // the original manga frames drive the scene: aligned micro-blends + panel cuts
+  assert.match(overlay, /<canvas class="scene" width="640" height="427"/);
+  assert.match(overlay, /sceneContext\.drawImage/);
+  assert.match(overlay, /chrome\.runtime\.getURL\(`assets\/maya-\$\{name\}\.webp`\)/);
+  for (const frame of ["focused", "blink", "glance", "nod", "warning", "celebrate"]) {
+    assert.match(overlay, new RegExp(`"${frame}"`));
   }
-  assert.doesNotMatch(overlay, /drawImage|getURL|<canvas|<img/);
+  assert.match(overlay, /FRAME_GROUP/);
+  assert.match(overlay, /DISPLAY_QUADS/);
+  assert.match(overlay, /function mapDisplayPoint/);
+  assert.match(overlay, /flashAlpha/);
+  assert.doesNotMatch(overlay, /<img|new Function/);
 
   // continuous animation engine with reduced-motion support
   assert.match(overlay, /requestAnimationFrame/);
   assert.match(overlay, /cancelAnimationFrame/);
   assert.match(overlay, /prefers-reduced-motion/);
-  assert.match(overlay, /applyStaticPose/);
+  assert.match(overlay, /window\.devicePixelRatio/);
+  assert.match(overlay, /new ResizeObserver/);
+  assert.match(overlay, /sceneResizeObserver\.disconnect\(\)/);
 
   // sound engine with mute persistence
   assert.match(overlay, /AudioContext/);
@@ -169,9 +181,10 @@ test("overlay is a timer-only Meet-style surface with a living Maya rig", async 
   assert.match(overlay, /showCaption/);
   assert.match(overlay, /overtimeDeep/);
 
-  // overtime keeps the call open and counts up
-  assert.match(overlay, /is-overtime/);
-  assert.match(overlay, /plus-glyph/);
+  // overtime keeps the call open and counts up in red
+  assert.match(overlay, /displayedOvertime/);
+  assert.match(overlay, /PLUS_GLYPH/);
+  assert.match(overlay, /DIGIT_COLORS/);
   assert.match(overlay, /over by \$\{minutes\} minutes/);
 
   // set UI: presets plus a hold-to-repeat stepper, no form inputs

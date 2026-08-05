@@ -111,200 +111,60 @@
     unmuted: ["Sound is back. My favorite instrument: the tick."],
   };
 
-  // ---------------------------------------------------------------- seven-seg markup
+  // ---------------------------------------------------------------- artwork + display geometry
+  const FRAME_NAMES = ["focused", "blink", "glance", "nod", "warning", "celebrate"];
+  // focused/blink/glance/nod share one composition, so blends between them read
+  // as facial motion; warning and celebrate are deliberate manga panel cuts.
+  const FRAME_GROUP = {
+    focused: "aligned", blink: "aligned", glance: "aligned", nod: "aligned",
+    warning: "warning", celebrate: "celebrate",
+  };
   const DIGIT_SEGMENTS = {
     0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg",
     5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg",
   };
-  const SEGMENT_POINTS = {
-    a: "10,4 50,4 56,10 50,16 10,16 4,10",
-    b: "50,18 56,12 60,18 60,44 54,50 48,44",
-    c: "54,52 60,58 60,84 54,90 48,84 48,58",
-    d: "10,84 50,84 56,90 50,96 10,96 4,90",
-    e: "0,58 6,52 12,58 12,84 6,90 0,84",
-    f: "0,18 6,12 12,18 12,44 6,50 0,44",
-    g: "10,44 50,44 56,50 50,56 10,56 4,50",
+  const SEGMENTS = [
+    ["a", [[10, 4], [50, 4], [56, 10], [50, 16], [10, 16], [4, 10]]],
+    ["b", [[50, 18], [56, 12], [60, 18], [60, 44], [54, 50], [48, 44]]],
+    ["c", [[54, 52], [60, 58], [60, 84], [54, 90], [48, 84], [48, 58]]],
+    ["d", [[10, 84], [50, 84], [56, 90], [50, 96], [10, 96], [4, 90]]],
+    ["e", [[0, 58], [6, 52], [12, 58], [12, 84], [6, 90], [0, 84]]],
+    ["f", [[0, 18], [6, 12], [12, 18], [12, 44], [6, 50], [0, 44]]],
+    ["g", [[10, 44], [50, 44], [56, 50], [50, 56], [10, 56], [4, 50]]],
+  ];
+  const PLUS_GLYPH = [
+    [[-28, 56], [-8, 56], [-8, 63], [-28, 63]],
+    [[-21.5, 49], [-14.5, 49], [-14.5, 70], [-21.5, 70]],
+  ];
+  const SCENE_SIZE = { width: 640, height: 427 };
+  const DISPLAY_LAYOUT = { width: 220, height: 120 };
+  const DIGIT_OFFSETS = [7, 57, 119, 169];
+  const DIGIT_SCALE_X = 44 / 60;
+  const DIGIT_OFFSET_Y = 10;
+  const DISPLAY_QUADS = {
+    aligned: {
+      topLeft: { x: 347, y: 133 },
+      topRight: { x: 525, y: 119 },
+      bottomRight: { x: 519, y: 247 },
+      bottomLeft: { x: 353, y: 257 },
+    },
+    warning: {
+      topLeft: { x: 340, y: 164 },
+      topRight: { x: 534, y: 156 },
+      bottomRight: { x: 534, y: 268 },
+      bottomLeft: { x: 340, y: 276 },
+    },
+    celebrate: {
+      topLeft: { x: 370, y: 136 },
+      topRight: { x: 550, y: 146 },
+      bottomRight: { x: 544, y: 244 },
+      bottomLeft: { x: 364, y: 234 },
+    },
   };
-  const DIGIT_OFFSETS = [10, 62, 126, 178];
-
-  const digitSlotsMarkup = DIGIT_OFFSETS.map((offset, slot) => {
-    const polygons = Object.entries(SEGMENT_POINTS)
-      .map(([name, points]) =>
-        `<polygon class="seg" data-slot="${slot}" data-seg="${name}" points="${points}"/>`)
-      .join("");
-    return `<g transform="translate(${offset},10) scale(0.73,1)">${polygons}</g>`;
-  }).join("");
-
-  const displayMarkup = `
-    <g id="display" transform="translate(392,166) scale(0.66)">
-      <g id="plus-glyph" class="is-hidden">
-        <rect x="-27" y="57" width="20" height="7" rx="2"/>
-        <rect x="-20.5" y="50.5" width="7" height="20" rx="2"/>
-      </g>
-      ${digitSlotsMarkup}
-      <circle class="colon-dot" cx="110" cy="55" r="5"/>
-      <circle class="colon-dot" cx="110" cy="86" r="5"/>
-    </g>`;
-
-  // ---------------------------------------------------------------- Maya scene
-  const sceneMarkup = `
-  <svg class="scene" viewBox="0 0 640 427" role="img" aria-label="Maya, an original manga timekeeper, holding a large orange kitchen timer">
-    <defs>
-      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#e9f0f9"/><stop offset="1" stop-color="#d3e4f4"/>
-      </linearGradient>
-      <linearGradient id="iris" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#8a5a2e"/><stop offset="1" stop-color="#4a2c14"/>
-      </linearGradient>
-      <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
-        <circle cx="4" cy="4" r="1.8" fill="#a9c4e2"/>
-      </pattern>
-      <clipPath id="eyeClipL"><path d="M 159,154 Q 174,141 190,152 Q 177,170 159,154 Z"/></clipPath>
-      <clipPath id="eyeClipR"><path d="M 204,152 Q 220,141 235,154 Q 217,170 204,152 Z"/></clipPath>
-    </defs>
-    <rect width="640" height="427" fill="url(#sky)"/>
-    <path d="M 0,80 Q 200,20 420,70 T 640,50 L 640,0 L 0,0 Z" fill="#f2e8d8" opacity=".55"/>
-    <path d="M 0,360 Q 240,320 460,370 T 640,340 L 640,427 L 0,427 Z" fill="#c5d9ee" opacity=".5"/>
-    <rect width="200" height="140" fill="url(#dots)" opacity=".35"/>
-    <rect x="470" y="300" width="170" height="127" fill="url(#dots)" opacity=".35"/>
-    <g id="speedlines" opacity="0">
-      <g fill="#7fa8d9" opacity=".55">
-        <polygon points="0,0 90,0 330,190"/><polygon points="640,10 640,90 400,200"/>
-        <polygon points="0,427 100,427 330,250"/><polygon points="640,427 560,427 420,260"/>
-        <polygon points="300,0 340,0 350,150"/>
-      </g>
-    </g>
-    <g id="scene-inner">
-      <ellipse cx="458" cy="356" rx="130" ry="12" fill="#b9cfe6" opacity=".5"/>
-      <ellipse cx="200" cy="420" rx="120" ry="12" fill="#b9cfe6" opacity=".45"/>
-      <g id="maya">
-        <g id="torso">
-          <path d="M 130,392 L 268,392 L 272,427 L 126,427 Z" fill="#28304a" stroke="#241812" stroke-width="3"/>
-          <path d="M 150,238 Q 196,222 246,238 L 258,392 L 140,392 Z" fill="#f4f1ea" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 118,262 Q 122,238 152,230 Q 174,240 178,262 L 172,400 L 126,400 Q 114,330 118,262 Z" fill="#3d69ad" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 278,262 Q 274,238 244,230 Q 222,240 218,262 L 226,400 L 268,400 Q 282,330 278,262 Z" fill="#3d69ad" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 128,270 Q 126,330 130,392" fill="none" stroke="#24406e" stroke-width="1.8"/>
-          <path d="M 268,270 Q 272,330 266,392" fill="none" stroke="#24406e" stroke-width="1.8"/>
-          <path d="M 174,232 Q 197,246 222,232" fill="none" stroke="#ddd6c8" stroke-width="5"/>
-          <path d="M 174,232 Q 197,246 222,232" fill="none" stroke="#241812" stroke-width="2.5"/>
-          <path d="M 180,244 Q 197,260 214,244" fill="none" stroke="#d9a441" stroke-width="2.5"/>
-          <circle cx="197" cy="262" r="5.5" fill="#e6b54d" stroke="#241812" stroke-width="2"/>
-        </g>
-        <g id="arm-support">
-          <path d="M 240,238 Q 262,246 266,278 Q 268,300 262,316 L 236,308 Q 240,286 236,264 Q 232,246 228,240 Z" fill="#3d69ad" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 238,306 Q 280,322 336,330 L 336,352 Q 276,344 234,330 Z" fill="#3d69ad" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 306,322 Q 322,326 338,328 L 338,352 Q 320,350 302,346 Z" fill="#89aede" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 344,334 Q 366,326 386,336 Q 396,346 382,353 Q 358,358 342,350 Z" fill="#e9b585" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 352,338 Q 362,335 370,337 M 354,346 Q 364,344 372,346" stroke="#c98a5e" stroke-width="2" fill="none"/>
-        </g>
-        <path d="M 186,196 L 210,196 L 208,228 L 188,228 Z" fill="#e9b585" stroke="#241812" stroke-width="3"/>
-        <path d="M 187,198 L 209,198 L 208,208 Q 198,213 188,208 Z" fill="#d99e6b" opacity=".85"/>
-        <g id="head">
-          <path d="M 152,148 Q 143,154 149,167 Q 155,174 161,165 Z" fill="#e9b585" stroke="#241812" stroke-width="3"/>
-          <path d="M 242,148 Q 251,154 245,167 Q 239,174 233,165 Z" fill="#e9b585" stroke="#241812" stroke-width="3"/>
-          <g id="earring-l"><circle cx="153" cy="177" r="6.5" fill="none" stroke="#d9a441" stroke-width="3"/></g>
-          <g id="earring-r"><circle cx="241" cy="177" r="6.5" fill="none" stroke="#d9a441" stroke-width="3"/></g>
-          <path d="M 156,124 Q 150,170 170,194 Q 186,210 197,210 Q 208,210 224,194 Q 244,170 238,124 Q 236,100 197,98 Q 158,100 156,124 Z" fill="#e9b585" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <ellipse cx="169" cy="174" rx="8" ry="4.5" fill="#e58b57" opacity=".28"/>
-          <ellipse cx="225" cy="174" rx="8" ry="4.5" fill="#e58b57" opacity=".28"/>
-          <path d="M 197,168 Q 201,173 197,177" fill="none" stroke="#b5765a" stroke-width="2.2" stroke-linecap="round"/>
-          <g id="mouth">
-            <path id="mouth-smile" d="M 184,189 Q 197,198 210,187" fill="none" stroke="#241812" stroke-width="3" stroke-linecap="round"/>
-            <path id="mouth-talk-a" d="M 185,188 Q 197,186 209,188 Q 206,200 197,201 Q 188,200 185,188 Z" fill="#5a2c20" stroke="#241812" stroke-width="2.5" visibility="hidden"/>
-            <path id="mouth-talk-b" d="M 188,190 Q 197,188 206,190 Q 204,196 197,197 Q 190,196 188,190 Z" fill="#5a2c20" stroke="#241812" stroke-width="2.5" visibility="hidden"/>
-            <path id="mouth-worried" d="M 185,193 Q 197,187 209,193" fill="none" stroke="#241812" stroke-width="3" stroke-linecap="round" visibility="hidden"/>
-            <path id="mouth-gasp" d="M 190,186 Q 197,183 204,186 Q 208,196 197,200 Q 186,196 190,186 Z" fill="#5a2c20" stroke="#241812" stroke-width="2.5" visibility="hidden"/>
-            <path id="mouth-grin" d="M 181,186 Q 197,184 213,186 Q 210,203 197,204 Q 184,203 181,186 Z" fill="#5a2c20" stroke="#241812" stroke-width="2.5" visibility="hidden"/>
-          </g>
-          <g id="eyes-open">
-            <g id="eye-l">
-              <path d="M 159,154 Q 174,141 190,152 Q 177,170 159,154 Z" fill="#fdfcf8" stroke="#241812" stroke-width="2"/>
-              <g clip-path="url(#eyeClipL)">
-                <g id="pupil-l">
-                  <circle cx="175" cy="156" r="9.5" fill="url(#iris)"/>
-                  <circle cx="175" cy="156" r="4.4" fill="#1c0f08"/>
-                  <circle cx="171.5" cy="152.5" r="3" fill="#fff"/>
-                  <circle cx="179" cy="160" r="1.4" fill="#fff" opacity=".85"/>
-                </g>
-                <g id="lid-l" transform="translate(0,-24)">
-                  <path d="M 156,154 Q 174,138 193,152 L 193,134 L 156,134 Z" fill="#e9b585"/>
-                  <path d="M 156,154 Q 174,138 193,152" fill="none" stroke="#241812" stroke-width="2.5"/>
-                </g>
-              </g>
-              <path d="M 158,153 Q 174,139 191,151" fill="none" stroke="#241812" stroke-width="4" stroke-linecap="round"/>
-              <path d="M 158,153 L 152,149" stroke="#241812" stroke-width="3.5" stroke-linecap="round"/>
-            </g>
-            <g id="eye-r">
-              <path d="M 204,152 Q 220,141 235,154 Q 217,170 204,152 Z" fill="#fdfcf8" stroke="#241812" stroke-width="2"/>
-              <g clip-path="url(#eyeClipR)">
-                <g id="pupil-r">
-                  <circle cx="219" cy="156" r="9.5" fill="url(#iris)"/>
-                  <circle cx="219" cy="156" r="4.4" fill="#1c0f08"/>
-                  <circle cx="215.5" cy="152.5" r="3" fill="#fff"/>
-                  <circle cx="223" cy="160" r="1.4" fill="#fff" opacity=".85"/>
-                </g>
-                <g id="lid-r" transform="translate(0,-24)">
-                  <path d="M 201,154 Q 219,138 238,152 L 238,134 L 201,134 Z" fill="#e9b585"/>
-                  <path d="M 201,154 Q 219,138 238,152" fill="none" stroke="#241812" stroke-width="2.5"/>
-                </g>
-              </g>
-              <path d="M 203,151 Q 219,139 236,153" fill="none" stroke="#241812" stroke-width="4" stroke-linecap="round"/>
-              <path d="M 236,153 L 242,149" stroke="#241812" stroke-width="3.5" stroke-linecap="round"/>
-            </g>
-          </g>
-          <g id="eyes-happy" visibility="hidden">
-            <path d="M 161,157 Q 175,146 189,157" fill="none" stroke="#241812" stroke-width="4" stroke-linecap="round"/>
-            <path d="M 205,157 Q 219,146 233,157" fill="none" stroke="#241812" stroke-width="4" stroke-linecap="round"/>
-          </g>
-          <g id="brow-l"><path d="M 158,138 Q 173,130 190,136" fill="none" stroke="#241812" stroke-width="4.5" stroke-linecap="round"/></g>
-          <g id="brow-r"><path d="M 204,136 Q 221,130 236,138" fill="none" stroke="#241812" stroke-width="4.5" stroke-linecap="round"/></g>
-          <g id="hair-front">
-            <path d="M 152,134 Q 148,96 197,92 Q 246,96 242,134 Q 238,114 220,109 Q 199,104 176,110 Q 158,115 152,134 Z" fill="#33241a" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-            <path d="M 168,112 Q 182,105 198,104" fill="none" stroke="#57402c" stroke-width="2.2" stroke-linecap="round"/>
-            <path d="M 208,105 Q 224,107 234,116" fill="none" stroke="#57402c" stroke-width="2.2" stroke-linecap="round"/>
-            <path d="M 156,146 Q 150,158 153,172" fill="none" stroke="#33241a" stroke-width="3.5" stroke-linecap="round"/>
-            <path d="M 238,146 Q 244,158 241,172" fill="none" stroke="#33241a" stroke-width="3.5" stroke-linecap="round"/>
-          </g>
-          <g id="bun">
-            <ellipse cx="197" cy="72" rx="31" ry="23" fill="#33241a" stroke="#241812" stroke-width="3"/>
-            <path d="M 175,78 Q 188,60 214,64" fill="none" stroke="#57402c" stroke-width="2.2" stroke-linecap="round"/>
-            <path d="M 180,88 Q 198,92 219,82" fill="none" stroke="#57402c" stroke-width="2.2" stroke-linecap="round"/>
-          </g>
-        </g>
-      </g>
-      <g id="timer-body">
-        <g id="knob">
-          <rect x="432" y="50" width="50" height="36" rx="8" fill="#d9a441" stroke="#241812" stroke-width="3.5"/>
-          <line x1="444" y1="56" x2="444" y2="80" stroke="#a87a24" stroke-width="3"/>
-          <line x1="457" y1="54" x2="457" y2="82" stroke="#a87a24" stroke-width="3"/>
-          <line x1="470" y1="56" x2="470" y2="80" stroke="#a87a24" stroke-width="3"/>
-          <rect x="424" y="82" width="66" height="14" rx="6" fill="#b3812c" stroke="#241812" stroke-width="3"/>
-        </g>
-        <rect x="392" y="342" width="30" height="14" rx="6" fill="#3a2a24" stroke="#241812" stroke-width="3"/>
-        <rect x="496" y="342" width="30" height="14" rx="6" fill="#3a2a24" stroke="#241812" stroke-width="3"/>
-        <rect x="338" y="92" width="240" height="256" rx="64" fill="#cf4f28" stroke="#241812" stroke-width="4"/>
-        <rect x="348" y="102" width="220" height="236" rx="56" fill="none" stroke="#e06a3c" stroke-width="6" opacity=".85"/>
-        <path d="M 356,300 Q 458,346 560,300 L 556,318 Q 458,356 360,318 Z" fill="#a83a1c" opacity=".6"/>
-        <rect x="366" y="120" width="184" height="184" rx="42" fill="#f3e8cf" stroke="#241812" stroke-width="3.5"/>
-        <path d="M 372,150 Q 380,128 402,126 L 512,126 Q 536,128 544,148 L 544,138 Q 536,124 512,122 L 402,122 Q 378,124 372,140 Z" fill="#fff" opacity=".5"/>
-        ${displayMarkup}
-        <g id="hand-grip">
-          <path d="M 568,178 Q 587,182 588,198 Q 587,212 570,214 Q 561,214 558,206 L 558,186 Z" fill="#e9b585" stroke="#241812" stroke-width="3" stroke-linejoin="round"/>
-          <path d="M 561,188 Q 570,186 576,188 M 561,197 Q 571,195 578,197 M 561,206 Q 570,204 575,206" stroke="#c98a5e" stroke-width="2" fill="none"/>
-        </g>
-      </g>
-      <g id="confetti" opacity="0">
-        <g class="confetti-piece" fill="#e6b54d"><circle cx="330" cy="60" r="5"/></g>
-        <g class="confetti-piece" fill="#7fa8d9"><rect x="560" y="70" width="9" height="9"/></g>
-        <g class="confetti-piece" fill="#cf4f28"><circle cx="600" cy="150" r="4"/></g>
-        <g class="confetti-piece" fill="#e6b54d"><rect x="300" y="120" width="8" height="8"/></g>
-        <g class="confetti-piece" fill="#7fa8d9"><circle cx="80" cy="70" r="5"/></g>
-        <g class="confetti-piece" fill="#cf4f28"><rect x="120" y="40" width="9" height="9"/></g>
-        <g class="confetti-piece" fill="#e6b54d"><path d="M 280,40 l 3,7 7,1 -5,5 1,7 -6,-3 -6,3 1,-7 -5,-5 7,-1 Z"/></g>
-        <g class="confetti-piece" fill="#e6b54d"><path d="M 590,100 l 3,7 7,1 -5,5 1,7 -6,-3 -6,3 1,-7 -5,-5 7,-1 Z"/></g>
-      </g>
-    </g>
-  </svg>`;
+  const DIGIT_COLORS = {
+    normal: { on: "#4a2717", ghost: "rgba(74, 39, 23, .075)" },
+    overtime: { on: "#a8241a", ghost: "rgba(168, 36, 26, .08)" },
+  };
 
   shadow.innerHTML = String.raw`
     <style>
@@ -330,26 +190,18 @@
       }
       .overlay[data-status="paused"] { --accent: #fdd663; }
       .overlay[data-status="done"], .overlay.is-urgent { --accent: #f28b82; }
-      .video { position: relative; overflow: hidden; background: #d7e7f2; }
-      .scene { display: block; width: 100%; height: auto; pointer-events: none; }
-      .scene .seg { fill: #4a2717; opacity: .06; }
-      .scene .seg.is-on { opacity: 1; }
-      .scene .colon-dot, .scene #plus-glyph { fill: #4a2717; }
-      .scene #plus-glyph.is-hidden { display: none; }
-      .scene #display.is-overtime .seg, .scene #display.is-overtime .colon-dot,
-      .scene #display.is-overtime #plus-glyph { fill: #b3261e; }
-      .scene #display.is-overtime .colon-dot { animation: colon-blink 1s steps(2, jump-none) infinite; }
-      #scene-inner, #maya, #head, #bun, #brow-l, #brow-r, #earring-l, #earring-r,
-      #timer-body, #knob, #pupil-l, #pupil-r, #lid-l, #lid-r, .confetti-piece {
-        transform-box: fill-box; transform-origin: 50% 50%;
+      .video {
+        position: relative;
+        aspect-ratio: 3 / 2;
+        overflow: hidden;
+        background: #d7e7f2;
       }
-      #maya { transform-origin: 50% 100%; }
-      #head { transform-origin: 50% 92%; }
-      #bun { transform-origin: 50% 100%; }
-      #earring-l, #earring-r { transform-origin: 50% 0%; }
-      #timer-body { transform-origin: 50% 62%; }
-      #knob { transform-origin: 50% 100%; }
-      @keyframes colon-blink { 50% { opacity: .15; } }
+      .scene {
+        display: block;
+        width: 100%; height: auto;
+        aspect-ratio: 640 / 427;
+        pointer-events: none;
+      }
       .drag-strip {
         position: absolute; inset: 0 0 auto; height: 42px;
         display: flex; align-items: flex-start; justify-content: center;
@@ -504,7 +356,7 @@
     </style>
     <section class="overlay" data-status="idle" aria-label="Maya Standup Timer">
       <div class="video">
-        ${sceneMarkup}
+        <canvas class="scene" width="640" height="427" role="img" aria-label="Maya, an original manga timekeeper, holding a large orange kitchen timer"></canvas>
         <div class="drag-strip">
           <button class="drag-handle" type="button" aria-label="Move timer window. Drag or use arrow keys">•••</button>
         </div>
@@ -562,25 +414,8 @@
   const setupToggle = shadow.querySelector(".setup-toggle");
   const stepperTime = shadow.querySelector(".stepper-time");
   const connectionMessage = shadow.querySelector(".connection-message");
-  const display = shadow.querySelector("#display");
-  const plusGlyph = shadow.querySelector("#plus-glyph");
-  const digitSegments = [0, 1, 2, 3].map((slot) =>
-    [...shadow.querySelectorAll(`.seg[data-slot="${slot}"]`)],
-  );
-  const rig = Object.fromEntries(
-    [
-      "scene-inner", "maya", "head", "bun", "brow-l", "brow-r", "earring-l",
-      "earring-r", "pupil-l", "pupil-r", "lid-l", "lid-r", "eyes-open",
-      "eyes-happy", "timer-body", "knob", "speedlines", "confetti",
-    ].map((id) => [id, shadow.getElementById(id)]),
-  );
-  const mouthShapes = Object.fromEntries(
-    ["smile", "talk-a", "talk-b", "worried", "gasp", "grin"].map((name) => [
-      name,
-      shadow.getElementById(`mouth-${name}`),
-    ]),
-  );
-  const confettiPieces = [...shadow.querySelectorAll(".confetti-piece")];
+  const scene = shadow.querySelector(".scene");
+  const sceneContext = scene.getContext("2d", { alpha: false });
 
   const listeners = new AbortController();
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -589,6 +424,17 @@
   let disposed = false;
   let expirationSent = false;
   let soundMuted = false;
+
+  // ---------------------------------------------------------------- frame images
+  const frames = {};
+  for (const name of FRAME_NAMES) {
+    const image = new Image();
+    image.addEventListener("load", () => {
+      if (name === "focused") requestPaint();
+    }, { signal: listeners.signal });
+    image.src = chrome.runtime.getURL(`assets/maya-${name}.webp`);
+    frames[name] = image;
+  }
 
   // ---------------------------------------------------------------- time helpers
   function remaining(now = Date.now()) {
@@ -703,7 +549,6 @@
   const lastLineIndex = {};
   let captionTimeout = 0;
   let lastCaptionAt = 0;
-  let talkUntil = 0;
 
   function pickLine(key) {
     const pool = LINES[key] ?? [];
@@ -723,67 +568,30 @@
     captionText.textContent = line;
     captionBox.classList.add("is-visible");
     lastCaptionAt = performance.now();
-    talkUntil = performance.now() + Math.min(holdMs - 1_200, 700 + line.length * 42);
     window.clearTimeout(captionTimeout);
     captionTimeout = window.setTimeout(() => {
       captionBox.classList.remove("is-visible");
     }, holdMs);
   }
 
-  // ---------------------------------------------------------------- digits
-  let lastDisplayed = "";
-  let lastOvertimeShown = null;
-
-  function paintDisplay(text, showOvertime) {
-    if (text === lastDisplayed && showOvertime === lastOvertimeShown) return;
-    lastDisplayed = text;
-    lastOvertimeShown = showOvertime;
-    display.classList.toggle("is-overtime", showOvertime);
-    plusGlyph.classList.toggle("is-hidden", !showOvertime);
-    const digits = text.replace(":", "");
-    digitSegments.forEach((segments, slot) => {
-      const active = DIGIT_SEGMENTS[digits[slot]] ?? "";
-      for (const segment of segments) {
-        segment.classList.toggle("is-on", active.includes(segment.dataset.seg));
-      }
-    });
-  }
-
-  // ---------------------------------------------------------------- animation engine
+  // ---------------------------------------------------------------- sprite animation engine
   const motion = {
+    mood: "calm",
     lastFrame: 0,
     pointer: { x: 0, y: 0 },
     pointerEased: { x: 0, y: 0 },
-    blinkNextAt: performance.now() + 2_000,
-    blinkPhase: null,
-    blinkStartedAt: 0,
-    doubleBlink: false,
-    gaze: { x: 0, y: 0, targetX: 4, targetY: 1, nextAt: 0 },
-    headTilt: 0,
-    headTiltTarget: 0,
-    headTiltNextAt: 0,
-    nodPulse: 0,
-    knobPulse: 0,
+    // ambient micro-expressions within the aligned frame set
+    micro: { frame: "focused", phase: "idle", startedAt: 0, alpha: 0, holdMs: 0, outMs: 150, inMs: 130 },
+    microNextAt: performance.now() + 1_800,
+    // panel-cut transition between frame groups
+    baseFrame: "focused",
+    flashAlpha: 0,
+    punch: 0,
     bounce: 0,
     bounceVelocity: 0,
-    speedlineOpacity: 0,
-    confettiStartedAt: 0,
-    mood: "calm",
-    lastMouth: "smile",
+    nagPulse: 0,
+    nodQueued: false,
   };
-
-  function setMouth(name) {
-    if (motion.lastMouth === name) return;
-    motion.lastMouth = name;
-    for (const [shapeName, node] of Object.entries(mouthShapes)) {
-      node.setAttribute("visibility", shapeName === name ? "visible" : "hidden");
-    }
-  }
-
-  function setHappyEyes(happy) {
-    rig["eyes-open"].setAttribute("visibility", happy ? "hidden" : "visible");
-    rig["eyes-happy"].setAttribute("visibility", happy ? "visible" : "hidden");
-  }
 
   function moodFor(phase) {
     if (phase === "final") return "panic";
@@ -795,186 +603,269 @@
     return "calm";
   }
 
-  function applyStaticPose(mood) {
-    const browLift = { celebrate: -4, panic: -3, urgent: 1, skeptic: 0 }[mood] ?? 0;
-    rig["brow-l"].style.transform = `translateY(${browLift}px)`;
-    rig["brow-r"].style.transform = `translateY(${mood === "skeptic" ? -4 : browLift}px)`;
-    setHappyEyes(mood === "celebrate");
-    setMouth(
-      mood === "celebrate" ? "grin"
-      : mood === "panic" ? "gasp"
-      : mood === "urgent" || mood === "overtime" ? "worried"
-      : "smile",
-    );
+  function baseFrameFor(mood) {
+    if (mood === "panic" || mood === "urgent" || mood === "overtime") return "warning";
+    if (mood === "celebrate") return "celebrate";
+    return "focused";
   }
 
-  function scheduleGaze(now) {
+  function setMood(mood) {
+    if (motion.mood === mood) return;
+    motion.mood = mood;
+    const nextBase = baseFrameFor(mood);
+    if (FRAME_GROUP[nextBase] !== FRAME_GROUP[motion.baseFrame]) {
+      // manga panel cut: white flash + zoom punch instead of a crossfade
+      motion.flashAlpha = 0.75;
+      motion.punch = 1;
+      motion.micro = { ...motion.micro, phase: "idle", alpha: 0, frame: "focused" };
+      if (mood === "celebrate") motion.bounceVelocity = 0.5;
+    }
+    motion.baseFrame = nextBase;
+  }
+
+  function queueNod() {
+    motion.nodQueued = true;
+  }
+
+  function scheduleMicro(now) {
     const mood = motion.mood;
+    if (FRAME_GROUP[motion.baseFrame] !== "aligned") {
+      motion.microNextAt = now + 900;
+      return;
+    }
+    let frame;
     const roll = Math.random();
-    let target;
-    if (mood === "panic" || mood === "urgent") {
-      target = roll < 0.7 ? [6, 1] : [0, 0];
+    if (motion.nodQueued) {
+      frame = "nod";
+      motion.nodQueued = false;
     } else if (mood === "paused") {
-      target = roll < 0.45 ? [-4, 2] : roll < 0.8 ? [0, 0] : [6, 1];
+      frame = roll < 0.3 ? "blink" : roll < 0.85 ? "glance" : "nod";
+    } else if (mood === "skeptic") {
+      frame = roll < 0.42 ? "blink" : roll < 0.8 ? "glance" : "nod";
     } else {
-      target =
-        roll < 0.34 ? [6, 1]
-        : roll < 0.6 ? [0, 0]
-        : roll < 0.8 ? [motion.pointerEased.x * 1.4, motion.pointerEased.y]
-        : [-3, 1];
+      frame = roll < 0.55 ? "blink" : roll < 0.78 ? "glance" : "nod";
     }
-    motion.gaze.targetX = target[0];
-    motion.gaze.targetY = target[1];
-    motion.gaze.nextAt = now + 1_200 + Math.random() * (mood === "panic" ? 1_400 : 3_000);
+    const isBlink = frame === "blink";
+    motion.micro = {
+      frame,
+      phase: "in",
+      startedAt: now,
+      alpha: 0,
+      inMs: isBlink ? 70 : 180,
+      holdMs: isBlink ? 90 : frame === "glance" ? 950 + Math.random() * 700 : 700,
+      outMs: isBlink ? 90 : 200,
+    };
   }
 
-  function frame(now) {
-    if (disposed) return;
-    animationFrame = window.requestAnimationFrame(frame);
-    if (now - motion.lastFrame < 33) return;
-    motion.lastFrame = now;
-    const seconds = now / 1000;
+  function advanceMicro(now) {
+    const micro = motion.micro;
+    if (micro.phase === "idle") {
+      if (now >= motion.microNextAt) scheduleMicro(now);
+      return;
+    }
+    const elapsed = now - micro.startedAt;
+    if (micro.phase === "in") {
+      micro.alpha = Math.min(1, elapsed / micro.inMs);
+      if (micro.alpha >= 1) { micro.phase = "hold"; micro.startedAt = now; }
+    } else if (micro.phase === "hold") {
+      micro.alpha = 1;
+      if (elapsed >= micro.holdMs) { micro.phase = "out"; micro.startedAt = now; }
+    } else if (micro.phase === "out") {
+      micro.alpha = Math.max(0, 1 - elapsed / micro.outMs);
+      if (micro.alpha <= 0) {
+        micro.phase = "idle";
+        const paceMood = motion.mood;
+        const gap = micro.frame === "blink" && Math.random() < 0.16
+          ? 240
+          : paceMood === "paused" ? 2_600 + Math.random() * 4_200 : 1_900 + Math.random() * 3_600;
+        motion.microNextAt = now + gap;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- canvas painting
+  let displayedTime = "01:30";
+  let displayedOvertime = false;
+
+  function mapDisplayPoint(quad, x, y) {
+    const u = x / DISPLAY_LAYOUT.width;
+    const v = y / DISPLAY_LAYOUT.height;
+    const topX = quad.topLeft.x + (quad.topRight.x - quad.topLeft.x) * u;
+    const topY = quad.topLeft.y + (quad.topRight.y - quad.topLeft.y) * u;
+    const bottomX = quad.bottomLeft.x + (quad.bottomRight.x - quad.bottomLeft.x) * u;
+    const bottomY = quad.bottomLeft.y + (quad.bottomRight.y - quad.bottomLeft.y) * u;
+    return {
+      x: topX + (bottomX - topX) * v,
+      y: topY + (bottomY - topY) * v,
+    };
+  }
+
+  function fillMappedPolygon(quad, points, offsetX, color, scaleX = 1, offsetY = 0) {
+    sceneContext.beginPath();
+    points.forEach(([x, y], index) => {
+      const mapped = mapDisplayPoint(quad, x * scaleX + offsetX, y + offsetY);
+      if (index === 0) sceneContext.moveTo(mapped.x, mapped.y);
+      else sceneContext.lineTo(mapped.x, mapped.y);
+    });
+    sceneContext.closePath();
+    sceneContext.fillStyle = color;
+    sceneContext.fill();
+  }
+
+  function fillMappedCircle(quad, centerX, centerY, radius, color) {
+    const points = Array.from({ length: 16 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 16;
+      return [
+        centerX + Math.cos(angle) * radius,
+        centerY + Math.sin(angle) * radius,
+      ];
+    });
+    fillMappedPolygon(quad, points, 0, color);
+  }
+
+  function drawTimerDisplay(quad, value, isOvertime) {
+    const colors = isOvertime ? DIGIT_COLORS.overtime : DIGIT_COLORS.normal;
+    const digits = value.replace(":", "").split("");
+    for (const [digitIndex, digit] of digits.entries()) {
+      const activeSegments = DIGIT_SEGMENTS[digit] ?? "";
+      for (const [segment, points] of SEGMENTS) {
+        fillMappedPolygon(quad, points, DIGIT_OFFSETS[digitIndex], colors.ghost, DIGIT_SCALE_X, DIGIT_OFFSET_Y);
+        if (activeSegments.includes(segment)) {
+          fillMappedPolygon(quad, points, DIGIT_OFFSETS[digitIndex], colors.on, DIGIT_SCALE_X, DIGIT_OFFSET_Y);
+        }
+      }
+    }
+
+    // colon blinks once per second while the meeting runs long
+    const colonVisible = !isOvertime || Math.floor(Date.now() / 500) % 2 === 0;
+    if (colonVisible) {
+      fillMappedCircle(quad, 110, 45, 3.5, colors.on);
+      fillMappedCircle(quad, 110, 76, 3.5, colors.on);
+    }
+    if (isOvertime) {
+      for (const points of PLUS_GLYPH) {
+        fillMappedPolygon(quad, points, 0, colors.on);
+      }
+    }
+  }
+
+  function drawScene(nowPerf = performance.now()) {
+    if (disposed || !sceneContext) return;
+    const cssWidth = scene.getBoundingClientRect().width || overlay.offsetWidth || 360;
+    const cssHeight = cssWidth * (SCENE_SIZE.height / SCENE_SIZE.width);
+    const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+    const targetWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
+    const targetHeight = Math.max(1, Math.round(cssHeight * pixelRatio));
+
+    if (scene.width !== targetWidth || scene.height !== targetHeight) {
+      scene.width = targetWidth;
+      scene.height = targetHeight;
+    }
+
+    sceneContext.setTransform(
+      targetWidth / SCENE_SIZE.width, 0, 0,
+      targetHeight / SCENE_SIZE.height, 0, 0,
+    );
+    sceneContext.fillStyle = "#d7e7f2";
+    sceneContext.fillRect(0, 0, SCENE_SIZE.width, SCENE_SIZE.height);
+
+    const reduced = prefersReducedMotion.matches;
+    const seconds = nowPerf / 1000;
     const mood = motion.mood;
 
-    // pointer parallax eases toward the latest pointer position
-    motion.pointerEased.x += (motion.pointer.x - motion.pointerEased.x) * 0.08;
-    motion.pointerEased.y += (motion.pointer.y - motion.pointerEased.y) * 0.08;
+    // continuous life: breathing + sway + parallax + tremor, never at rest
+    let dx = 0;
+    let dy = 0;
+    let rotate = 0;
+    let scale = 1;
+    if (!reduced) {
+      motion.pointerEased.x += (motion.pointer.x - motion.pointerEased.x) * 0.08;
+      motion.pointerEased.y += (motion.pointer.y - motion.pointerEased.y) * 0.08;
+      const breath = Math.sin(seconds * 2.1) * 1.1 + Math.sin(seconds * 3.37) * 0.45;
+      const sway = Math.sin(seconds * 0.47) * 1.4 + Math.sin(seconds * 0.203) * 0.9;
+      const tremorMagnitude =
+        mood === "panic" ? 1.6
+        : mood === "urgent" ? 0.55
+        : mood === "overtime" ? motion.nagPulse * 1.2
+        : 0;
+      dx = sway + motion.pointerEased.x * 3.4 + (Math.random() - 0.5) * 2 * tremorMagnitude;
+      dy = breath + motion.pointerEased.y * 2.2 + (Math.random() - 0.5) * 2 * tremorMagnitude;
+      rotate = (sway * 0.06 + motion.pointerEased.x * 0.18) * (Math.PI / 180);
 
-    // breathing: two irrational-ratio sines so the loop never visibly repeats
-    const breath = Math.sin(seconds * 2.1) * 0.9 + Math.sin(seconds * 3.37) * 0.35;
-    const sway = Math.sin(seconds * 0.47) * 0.7 + Math.sin(seconds * 0.203) * 0.5;
-
-    // stochastic blinks with occasional double-blink
-    if (motion.blinkPhase === null && now >= motion.blinkNextAt && mood !== "celebrate") {
-      motion.blinkPhase = "closing";
-      motion.blinkStartedAt = now;
-      motion.doubleBlink = Math.random() < 0.18;
-    }
-    let lidProgress = 0;
-    if (motion.blinkPhase === "closing") {
-      lidProgress = Math.min(1, (now - motion.blinkStartedAt) / 90);
-      if (lidProgress >= 1) { motion.blinkPhase = "hold"; motion.blinkStartedAt = now; }
-    } else if (motion.blinkPhase === "hold") {
-      lidProgress = 1;
-      if (now - motion.blinkStartedAt > 70) { motion.blinkPhase = "opening"; motion.blinkStartedAt = now; }
-    } else if (motion.blinkPhase === "opening") {
-      lidProgress = 1 - Math.min(1, (now - motion.blinkStartedAt) / 110);
-      if (lidProgress <= 0) {
-        motion.blinkPhase = null;
-        motion.blinkNextAt = motion.doubleBlink
-          ? now + 260
-          : now + 1_400 + Math.random() * 3_800;
-        motion.doubleBlink = false;
-      }
-    }
-
-    // gaze saccades
-    if (now >= motion.gaze.nextAt) scheduleGaze(now);
-    motion.gaze.x += (motion.gaze.targetX - motion.gaze.x) * 0.16;
-    motion.gaze.y += (motion.gaze.targetY - motion.gaze.y) * 0.16;
-
-    // head drift and nods
-    if (now >= motion.headTiltNextAt) {
-      motion.headTiltTarget = (Math.random() - 0.5) * (mood === "paused" ? 4.4 : 3.2);
-      motion.headTiltNextAt = now + 2_600 + Math.random() * 4_200;
-    }
-    motion.headTilt += (motion.headTiltTarget - motion.headTilt) * 0.04;
-    motion.nodPulse = Math.max(0, motion.nodPulse - 0.032);
-    motion.knobPulse = Math.max(0, motion.knobPulse - 0.028);
-    const nod = Math.sin(motion.nodPulse * Math.PI * 3) * motion.nodPulse * 5;
-
-    // celebrate bounce spring
-    if (mood === "celebrate") {
-      motion.bounceVelocity += (1 - motion.bounce) * 0.16;
-      motion.bounceVelocity *= 0.82;
-      motion.bounce += motion.bounceVelocity;
-    } else {
-      motion.bounce = 0;
-      motion.bounceVelocity = 0;
-    }
-
-    // urgency tremor on the timer itself: it is the thing that is upset
-    const tremorMagnitude = mood === "panic" ? 1.5 : mood === "urgent" ? 0.55 : 0;
-    const tremorX = (Math.random() - 0.5) * 2 * tremorMagnitude;
-    const tremorY = (Math.random() - 0.5) * 2 * tremorMagnitude;
-
-    // speedlines fade with mood
-    const speedlineTarget = mood === "panic" ? 0.5 : mood === "urgent" ? 0.16 : 0;
-    motion.speedlineOpacity += (speedlineTarget - motion.speedlineOpacity) * 0.1;
-    rig.speedlines.setAttribute("opacity", motion.speedlineOpacity.toFixed(3));
-
-    // confetti burst on celebrate entry
-    if (motion.confettiStartedAt) {
-      const elapsed = now - motion.confettiStartedAt;
-      if (elapsed > 2_000) {
-        motion.confettiStartedAt = 0;
-        rig.confetti.setAttribute("opacity", "0");
+      if (mood === "celebrate") {
+        motion.bounceVelocity += (1 - motion.bounce) * 0.16;
+        motion.bounceVelocity *= 0.82;
+        motion.bounce += motion.bounceVelocity;
       } else {
-        rig.confetti.setAttribute("opacity", String(Math.max(0, 1 - elapsed / 1_800)));
-        confettiPieces.forEach((piece, index) => {
-          const fall = (elapsed / 1_800) * (26 + (index % 4) * 9);
-          const spin = (elapsed / 1_000) * (60 + index * 17) * (index % 2 ? 1 : -1);
-          piece.style.transform = `translateY(${fall}px) rotate(${spin}deg)`;
-        });
+        motion.bounce = 0;
+        motion.bounceVelocity = 0;
+      }
+      motion.punch = Math.max(0, motion.punch - 0.09);
+      motion.nagPulse = Math.max(0, motion.nagPulse - 0.02);
+      scale = 1 + motion.bounce * 0.028 + motion.punch * motion.punch * 0.05;
+    }
+
+    const centerX = SCENE_SIZE.width / 2;
+    const centerY = SCENE_SIZE.height / 2 + 20;
+    sceneContext.save();
+    sceneContext.translate(centerX + dx, centerY + dy);
+    sceneContext.rotate(rotate);
+    sceneContext.scale(scale, scale);
+    sceneContext.translate(-centerX, -centerY);
+    // slight overdraw hides edge gaps introduced by the motion transform
+    const pad = 8;
+
+    const baseImage = frames[motion.baseFrame];
+    if (baseImage?.complete && baseImage.naturalWidth > 0) {
+      sceneContext.drawImage(baseImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
+    }
+    if (!reduced && FRAME_GROUP[motion.baseFrame] === "aligned" && motion.micro.alpha > 0) {
+      const microImage = frames[motion.micro.frame];
+      if (microImage?.complete && microImage.naturalWidth > 0) {
+        sceneContext.globalAlpha = motion.micro.alpha;
+        sceneContext.drawImage(microImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
+        sceneContext.globalAlpha = 1;
       }
     }
 
-    // mouth: talk flaps while a caption is on screen
-    if (now < talkUntil) {
-      setMouth(Math.floor(now / 115) % 3 === 2 ? "talk-b" : "talk-a");
-    } else if (mood === "celebrate") {
-      setMouth("grin");
-    } else if (mood === "panic") {
-      setMouth("gasp");
-    } else if (mood === "urgent") {
-      setMouth("worried");
-    } else if (mood === "overtime") {
-      setMouth(Math.sin(seconds * 0.55) > 0.4 ? "worried" : "smile");
-    } else {
-      setMouth("smile");
+    const quad = DISPLAY_QUADS[FRAME_GROUP[motion.baseFrame]];
+    drawTimerDisplay(quad, displayedTime, displayedOvertime);
+    sceneContext.restore();
+
+    if (!reduced && motion.flashAlpha > 0.01) {
+      sceneContext.globalAlpha = motion.flashAlpha;
+      sceneContext.fillStyle = "#fff";
+      sceneContext.fillRect(0, 0, SCENE_SIZE.width, SCENE_SIZE.height);
+      sceneContext.globalAlpha = 1;
+      motion.flashAlpha *= 0.78;
     }
-    setHappyEyes(mood === "celebrate");
-
-    // brows by mood
-    const browTargets =
-      mood === "skeptic" ? [[0, 0], [-4, -7]]
-      : mood === "urgent" ? [[1.5, 9], [1.5, -9]]
-      : mood === "panic" ? [[-3.5, 7], [-3.5, -7]]
-      : mood === "celebrate" ? [[-4, 0], [-4, 0]]
-      : [[0, 0], [0, 0]];
-    rig["brow-l"].style.transform = `translateY(${browTargets[0][0]}px) rotate(${browTargets[0][1] * 0.35}deg)`;
-    rig["brow-r"].style.transform = `translateY(${browTargets[1][0]}px) rotate(${browTargets[1][1] * 0.35}deg)`;
-
-    // compose transforms
-    rig["scene-inner"].style.transform =
-      `translate(${(motion.pointerEased.x * 3).toFixed(2)}px, ${(motion.pointerEased.y * 2).toFixed(2)}px) rotate(${(motion.pointerEased.x * 0.22).toFixed(3)}deg)`;
-    rig.maya.style.transform =
-      `translate(${(sway * 1.1).toFixed(2)}px, ${(breath * 1.05).toFixed(2)}px)`;
-    rig.head.style.transform =
-      `rotate(${(motion.headTilt + sway * 0.5).toFixed(2)}deg) translateY(${(breath * 0.55 + nod).toFixed(2)}px)`;
-    rig.bun.style.transform = `rotate(${(-motion.headTilt * 0.5).toFixed(2)}deg)`;
-    const earringSwing = Math.sin(seconds * 3.05) * 1.6 + motion.headTilt * 2.4 + nod * 2.2;
-    rig["earring-l"].style.transform = `rotate(${earringSwing.toFixed(2)}deg)`;
-    rig["earring-r"].style.transform = `rotate(${(earringSwing * 0.9).toFixed(2)}deg)`;
-    const pupilShift = `translate(${motion.gaze.x.toFixed(2)}px, ${motion.gaze.y.toFixed(2)}px)`;
-    rig["pupil-l"].style.transform = pupilShift;
-    rig["pupil-r"].style.transform = pupilShift;
-    const lidShift = `translateY(${(24 * lidProgress - 24).toFixed(1)}px)`;
-    rig["lid-l"].style.transform = lidShift;
-    rig["lid-r"].style.transform = lidShift;
-    const timerBob = Math.sin(seconds * 1.53 + 0.9) * 0.8;
-    const bounceScale = 1 + motion.bounce * 0.05;
-    rig["timer-body"].style.transform =
-      `translate(${tremorX.toFixed(2)}px, ${(timerBob + tremorY).toFixed(2)}px) scale(${bounceScale.toFixed(4)}) rotate(${(tremorX * 0.3).toFixed(2)}deg)`;
-    rig.knob.style.transform = `rotate(${(Math.sin(motion.knobPulse * Math.PI * 4) * motion.knobPulse * 14).toFixed(2)}deg)`;
   }
 
   let animationFrame = 0;
+  let paintQueued = false;
+
+  function requestPaint() {
+    if (paintQueued || disposed) return;
+    paintQueued = true;
+    window.requestAnimationFrame((now) => {
+      paintQueued = false;
+      drawScene(now);
+    });
+  }
+
+  function frameLoop(now) {
+    if (disposed) return;
+    animationFrame = window.requestAnimationFrame(frameLoop);
+    if (now - motion.lastFrame < 33) return;
+    motion.lastFrame = now;
+    advanceMicro(now);
+    drawScene(now);
+  }
 
   function startMotion() {
     if (prefersReducedMotion.matches || disposed || animationFrame) return;
     motion.lastFrame = 0;
-    animationFrame = window.requestAnimationFrame(frame);
+    animationFrame = window.requestAnimationFrame(frameLoop);
   }
 
   function stopMotion() {
@@ -983,28 +874,18 @@
   }
 
   prefersReducedMotion.addEventListener("change", () => {
-    if (prefersReducedMotion.matches) {
-      stopMotion();
-      for (const node of [
-        rig["scene-inner"], rig.maya, rig.head, rig.bun, rig["earring-l"],
-        rig["earring-r"], rig["pupil-l"], rig["pupil-r"], rig["timer-body"], rig.knob,
-      ]) {
-        node.style.transform = "";
-      }
-      rig["lid-l"].style.transform = "translateY(-24px)";
-      rig["lid-r"].style.transform = "translateY(-24px)";
-      rig.speedlines.setAttribute("opacity", "0");
-      rig.confetti.setAttribute("opacity", "0");
-      applyStaticPose(motion.mood);
-    } else {
-      startMotion();
-    }
+    if (prefersReducedMotion.matches) stopMotion();
+    else startMotion();
+    requestPaint();
   }, { signal: listeners.signal });
 
   document.addEventListener("pointermove", (event) => {
     motion.pointer.x = Math.max(-1.4, Math.min(1.4, (event.clientX / window.innerWidth - 0.5) * 2.8));
     motion.pointer.y = Math.max(-1.4, Math.min(1.4, (event.clientY / window.innerHeight - 0.5) * 2.8));
   }, { passive: true, signal: listeners.signal });
+
+  const sceneResizeObserver = new ResizeObserver(() => requestPaint());
+  sceneResizeObserver.observe(scene);
 
   // ---------------------------------------------------------------- render + transitions
   let prevStatus = null;
@@ -1032,8 +913,6 @@
 
     if (status === "done" && prevStatus !== "done" && prevStatus !== null) {
       playChime();
-      motion.confettiStartedAt = performance.now();
-      motion.bounceVelocity = 0.5;
       showCaption("done");
     }
 
@@ -1042,7 +921,7 @@
       if (overtimeMinute > prevOvertimeMinute && overtimeMinute > 0) {
         playNag(overtimeMinute);
         showCaption(overtimeMinute >= 3 ? "overtimeDeep" : "overtime");
-        motion.nodPulse = 0.9;
+        motion.nagPulse = 1;
       }
       prevOvertimeMinute = overtimeMinute;
     } else {
@@ -1058,7 +937,6 @@
       if (phase !== "calm" && performance.now() - lastCaptionAt > 1_500) {
         showCaption(phase);
       }
-      motion.nodPulse = 0.7;
     }
 
     // occasional unprompted commentary so Maya never feels asleep
@@ -1073,8 +951,7 @@
 
     prevStatus = status;
     prevPhase = phase;
-    motion.mood = moodFor(phase);
-    if (prefersReducedMotion.matches) applyStaticPose(motion.mood);
+    setMood(moodFor(phase));
   }
 
   function render() {
@@ -1092,7 +969,10 @@
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
 
-    paintDisplay(formatted, isOvertime);
+    displayedTime = formatted;
+    displayedOvertime = isOvertime;
+    if (prefersReducedMotion.matches || !animationFrame) requestPaint();
+
     timerReading.textContent = isOvertime
       ? `over by ${minutes} minutes ${seconds} seconds`
       : `${minutes} minutes ${seconds} seconds`;
@@ -1264,7 +1144,6 @@
     }
     pendingDurationMs = Math.max(15_000, Math.min(5_999_000, pendingDurationMs + stepMs));
     stepperTime.textContent = formatTime(pendingDurationMs);
-    motion.knobPulse = 0.8;
     window.clearTimeout(stepCommitTimeout);
     stepCommitTimeout = window.setTimeout(commitPendingDuration, 350);
   }
@@ -1312,8 +1191,7 @@
     button.addEventListener("click", () => {
       void sendTimerAction("set-duration", Number(button.dataset.durationMs));
       showCaption("durationSet");
-      motion.nodPulse = 0.9;
-      motion.knobPulse = 1;
+      queueNod();
     }, { signal: listeners.signal });
   });
 
@@ -1346,6 +1224,7 @@
     window.clearTimeout(stepCommitTimeout);
     stopStepRepeat();
     stopMotion();
+    sceneResizeObserver.disconnect();
     listeners.abort();
     if (audioContext) void audioContext.close().catch(() => {});
     try {
@@ -1386,17 +1265,15 @@
         if (statusBefore === "running") showCaption("paused");
         else if (statusBefore === "paused") showCaption("resumed");
         else showCaption("start");
-        motion.nodPulse = 0.9;
-        motion.knobPulse = statusBefore === "running" ? 0.4 : 1;
+        queueNod();
       } else if (action === "add-30") {
         showCaption("added");
-        motion.nodPulse = 0.7;
+        queueNod();
       } else if (action === "subtract-30") {
         showCaption("subtracted");
-        motion.nodPulse = 0.7;
+        queueNod();
       } else if (action === "reset") {
         showCaption("reset");
-        motion.knobPulse = 1;
       }
     }, { signal: listeners.signal });
   });
@@ -1423,8 +1300,10 @@
     prevStatus = state.status;
     prevPhase = currentPhase();
     motion.mood = moodFor(prevPhase);
+    motion.baseFrame = baseFrameFor(motion.mood);
     render();
     if (state.status === "idle") showCaption("idle", 5_200);
   });
   startMotion();
+  requestPaint();
 })();

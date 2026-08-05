@@ -2,10 +2,11 @@
 
 Maya is a self-contained Manifest V3 extension that adds a movable standup timer
 to the current webpage. It runs offline and does not depend on the Standup Timer
-website being open. Maya herself is an inline vector rig: she breathes, blinks,
-glances at the clock, follows your pointer, comments on the meeting through
-Meet-style captions, and escalates from calm to skeptical to full manga panic as
-the timebox drains.
+website being open. Maya is drawn from the original manga artwork and never
+sits still: the frame continuously breathes, sways, and follows your pointer,
+she blinks, glances at the clock, and nods through seamless blends between
+aligned frames, comments on the meeting through Meet-style captions, and cuts
+to dramatic warning and celebration panels as the timebox drains.
 
 ## Load unpacked
 
@@ -61,9 +62,9 @@ working.
 - `storage`: saves only timer state, overlay position, and the mute preference
   on the local device.
 
-The extension requests no persistent host permissions and declares no
-web-accessible resources. It has no content scripts, analytics, advertising,
-accounts, remote code, or network requests. The release privacy statement lives
+The extension requests no persistent host permissions; its only web-accessible
+resources are Maya's six packaged artwork frames. It has no content scripts,
+analytics, advertising, accounts, remote code, or network requests. The release privacy statement lives
 at [`../store-listing/privacy-policy.md`](../store-listing/privacy-policy.md).
 
 ## Release check
