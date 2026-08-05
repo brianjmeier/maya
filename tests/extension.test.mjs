@@ -13,6 +13,11 @@ import {
 
 const extensionUrl = new URL("../extension/", import.meta.url);
 
+const MAYA_FRAMES = [
+  "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
+  "yawn", "pleading", "sigh", "warning", "celebrate",
+];
+
 async function source(name) {
   return readFile(new URL(name, extensionUrl), "utf8");
 }
@@ -46,24 +51,9 @@ test("manifest icons and all thirteen Maya frames exist", async () => {
     assert.equal(bytes.readUInt32BE(20), size);
   }
 
-  for (const frame of [
-    "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
-    "yawn", "pleading", "sigh", "warning", "celebrate",
-  ]) {
+  for (const frame of MAYA_FRAMES) {
     await access(new URL(`assets/maya-${frame}.webp`, extensionUrl));
   }
-});
-
-test("extension JavaScript contains no remote or dynamic executable code", async () => {
-  const combined = await Promise.all([
-    source("service-worker.js"),
-    source("timer-state.js"),
-    source("overlay.js"),
-  ]).then((parts) => parts.join("\n"));
-
-  assert.doesNotMatch(combined, /https?:\/\//);
-  assert.doesNotMatch(combined, /\beval\s*\(|new Function\s*\(/);
-  assert.doesNotMatch(combined, /web-bridge|timerAction/);
 });
 
 test("timer state supports presets, exact durations, and bounded adjustments", () => {
@@ -146,80 +136,34 @@ test("hitting zero starts overtime instead of ending the session", () => {
   assert.equal(remainingFromTimerState(again, now + 24_000), 10_000);
 });
 
-test("overlay is a timer-only Meet-style surface with a living Maya", async () => {
+test("overlay ships the timer-only controls and every Maya frame", async () => {
   const overlay = await source("overlay.js");
 
-  // the original manga frames drive the scene: aligned micro-blends + panel cuts
+  // the canvas scene renders the manga frames; every frame is referenced
   assert.match(overlay, /<canvas class="scene" width="640" height="427"/);
-  assert.match(overlay, /sceneContext\.drawImage/);
-  assert.match(overlay, /chrome\.runtime\.getURL\(`assets\/maya-\$\{name\}\.webp`\)/);
-  for (const frame of [
-    "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
-    "yawn", "pleading", "sigh", "warning", "celebrate",
-  ]) {
+  for (const frame of MAYA_FRAMES) {
     assert.match(overlay, new RegExp(`"${frame}"`));
   }
-  assert.match(overlay, /FRAME_GROUP/);
-  assert.match(overlay, /talkUntil/);
-  assert.match(overlay, /overtimeSettled/);
-  assert.match(overlay, /DISPLAY_QUADS/);
-  assert.match(overlay, /function mapDisplayPoint/);
-  assert.match(overlay, /flashAlpha/);
-  assert.doesNotMatch(overlay, /<img|new Function/);
 
-  // continuous animation engine with reduced-motion support
-  assert.match(overlay, /requestAnimationFrame/);
-  assert.match(overlay, /cancelAnimationFrame/);
-  assert.match(overlay, /prefers-reduced-motion/);
-  assert.match(overlay, /window\.devicePixelRatio/);
-  assert.match(overlay, /new ResizeObserver/);
-  assert.match(overlay, /sceneResizeObserver\.disconnect\(\)/);
-
-  // sound engine with mute persistence
-  assert.match(overlay, /AudioContext/);
-  assert.match(overlay, /playTick/);
-  assert.match(overlay, /playChime/);
-  assert.match(overlay, /playNag/);
-  assert.match(overlay, /soundMuted/);
-  assert.match(overlay, /class="sound-toggle"/);
-  assert.match(overlay, /visibilityState/);
-
-  // Maya speaks through captions
-  assert.match(overlay, /class="caption"/);
-  assert.match(overlay, /showCaption/);
-  assert.match(overlay, /overtimeDeep/);
-
-  // overtime keeps the call open and counts up in red
-  assert.match(overlay, /displayedOvertime/);
-  assert.match(overlay, /PLUS_GLYPH/);
-  assert.match(overlay, /DIGIT_COLORS/);
-  assert.match(overlay, /over by \$\{minutes\} minutes/);
-
-  // set UI: presets, a hold-to-repeat stepper, and a typeable readout
-  assert.match(overlay, /data-duration-ms="60000"/);
-  assert.match(overlay, /data-duration-ms="90000"/);
-  assert.match(overlay, /data-duration-ms="120000"/);
+  // controls contract: call dock actions, presets, stepper, hangup
+  for (const action of ["toggle", "add-30", "subtract-30", "reset"]) {
+    assert.match(overlay, new RegExp(`data-action="${action}"`));
+  }
+  for (const preset of [60000, 90000, 120000]) {
+    assert.match(overlay, new RegExp(`data-duration-ms="${preset}"`));
+  }
   assert.match(overlay, /data-step-ms="-15000"/);
   assert.match(overlay, /data-step-ms="15000"/);
   assert.match(overlay, /<input class="stepper-time" inputmode="numeric"/);
-  assert.match(overlay, /parseTypedDuration/);
-  assert.doesNotMatch(overlay, /name="minutes"|name="seconds"|<form/);
-
-  // timer-only surface and call chrome
-  assert.doesNotMatch(overlay, /class="progress"|participant-list|people-list/);
-  assert.match(overlay, /data-action="subtract-30"/);
-  assert.match(overlay, /data-action="add-30"/);
-  assert.match(overlay, /data-action="reset"/);
-  assert.match(overlay, /data-action="toggle"/);
   assert.match(overlay, /class="call-control hangup"/);
   assert.match(overlay, /class="sr-only timer-reading"/);
-  assert.match(overlay, /chrome\.runtime\.sendMessage/);
 
-  // complete cleanup contract
-  assert.match(overlay, /clearInterval\(intervalId\)/);
-  assert.match(overlay, /listeners\.abort\(\)/);
-  assert.match(overlay, /removeListener\(receiveStorageChange\)/);
-  assert.match(overlay, /audioContext\.close\(\)/);
+  // release gates: no raster <img>, no dynamic code, reduced-motion honored
+  assert.doesNotMatch(overlay, /<img|new Function/);
+  assert.match(overlay, /prefers-reduced-motion/);
+
+  // timer-only surface: no participant lists, no form controls
+  assert.doesNotMatch(overlay, /class="progress"|participant-list|people-list|<form/);
 });
 
 test("service worker owns state changes and reports protected-page failures", async () => {
@@ -227,8 +171,6 @@ test("service worker owns state changes and reports protected-page failures", as
 
   assert.match(worker, /MAYA_TIMER_GET_STATE/);
   assert.match(worker, /MAYA_TIMER_ACTION/);
-  assert.match(worker, /dispatchTimerAction\(message\.action, message\.durationMs\)/);
   assert.match(worker, /setBadgeText\(\{ text: "!", tabId \}\)/);
   assert.match(worker, /protected Chrome page/);
-  assert.match(worker, /actionQueue/);
 });

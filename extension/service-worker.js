@@ -29,11 +29,14 @@ async function initializeStorage() {
   }
 }
 
-async function readTimerState() {
+async function readTimerState({ repairStorage = true } = {}) {
   const saved = await chrome.storage.local.get(TIMER_STATE_KEY);
   const state = normalizeTimerState(saved[TIMER_STATE_KEY]);
 
-  if (JSON.stringify(state) !== JSON.stringify(saved[TIMER_STATE_KEY])) {
+  if (
+    repairStorage &&
+    JSON.stringify(state) !== JSON.stringify(saved[TIMER_STATE_KEY])
+  ) {
     await chrome.storage.local.set({ [TIMER_STATE_KEY]: state });
   }
 
@@ -44,7 +47,8 @@ let actionQueue = Promise.resolve();
 
 function dispatchTimerAction(action, durationMs) {
   const operation = actionQueue.then(async () => {
-    const current = await readTimerState();
+    // the action write below persists the normalized state anyway
+    const current = await readTimerState({ repairStorage: false });
     const next = applyTimerAction(current, action, Date.now(), durationMs);
     if (next !== current) {
       await chrome.storage.local.set({ [TIMER_STATE_KEY]: next });

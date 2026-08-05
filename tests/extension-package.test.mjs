@@ -16,6 +16,16 @@ async function temporaryDirectory(t) {
   return directory;
 }
 
+async function copiedExtensionSource(t) {
+  const sourceDir = resolve(await temporaryDirectory(t), "extension");
+  await cp(extensionDir, sourceDir, { recursive: true });
+  return sourceDir;
+}
+
+async function appendToFile(path, text) {
+  await writeFile(path, `${await readFile(path, "utf8")}\n${text}\n`);
+}
+
 function storedZipFileList(buffer) {
   const files = [];
   let offset = 0;
@@ -66,13 +76,10 @@ test("release ZIP has a deterministic, clean root file list", async (t) => {
 });
 
 test("release validation rejects development origins", async (t) => {
-  const directory = await temporaryDirectory(t);
-  const sourceDir = resolve(directory, "extension");
-  await cp(extensionDir, sourceDir, { recursive: true });
-  const workerPath = resolve(sourceDir, "service-worker.js");
-  await writeFile(
-    workerPath,
-    `${await readFile(workerPath, "utf8")}\n// http://localhost:4173\n`,
+  const sourceDir = await copiedExtensionSource(t);
+  await appendToFile(
+    resolve(sourceDir, "service-worker.js"),
+    "// http://localhost:4173",
   );
 
   await assert.rejects(
@@ -82,13 +89,10 @@ test("release validation rejects development origins", async (t) => {
 });
 
 test("release validation rejects remotely hosted executable code", async (t) => {
-  const directory = await temporaryDirectory(t);
-  const sourceDir = resolve(directory, "extension");
-  await cp(extensionDir, sourceDir, { recursive: true });
-  const overlayPath = resolve(sourceDir, "overlay.js");
-  await writeFile(
-    overlayPath,
-    `${await readFile(overlayPath, "utf8")}\nimport("https://example.com/remote.js");\n`,
+  const sourceDir = await copiedExtensionSource(t);
+  await appendToFile(
+    resolve(sourceDir, "overlay.js"),
+    'import("https://example.com/remote.js");',
   );
 
   await assert.rejects(
@@ -98,9 +102,7 @@ test("release validation rejects remotely hosted executable code", async (t) => 
 });
 
 test("release validation rejects missing runtime imports", async (t) => {
-  const directory = await temporaryDirectory(t);
-  const sourceDir = resolve(directory, "extension");
-  await cp(extensionDir, sourceDir, { recursive: true });
+  const sourceDir = await copiedExtensionSource(t);
   await rm(resolve(sourceDir, "timer-state.js"));
 
   await assert.rejects(

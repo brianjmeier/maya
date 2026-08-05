@@ -30,11 +30,12 @@ const RUNTIME_EXTENSIONS = new Set([
   ".woff",
   ".woff2",
 ]);
+// text runtime files get scanned for forbidden patterns and local references
+const TEXT_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".mjs", ".svg"]);
 const IGNORED_FILENAMES = new Set([
   ".DS_Store",
   "desktop.ini",
   "README",
-  "README.md",
   "Thumbs.db",
 ]);
 const IGNORED_DIRECTORIES = new Set([
@@ -48,10 +49,7 @@ const IGNORED_DIRECTORIES = new Set([
   "release",
 ]);
 const REQUIRED_ICON_SIZES = [16, 32, 48, 128];
-
-function comparePaths(a, b) {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
+const DEV_ORIGIN_PATTERN = /\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0|terminal\.local)\b/i;
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -97,7 +95,7 @@ async function listRuntimeFiles(directory, root = directory) {
     );
     files.push(path);
   }
-  return files.sort(comparePaths);
+  return files.sort();
 }
 
 function collectManifestReferences(manifest) {
@@ -136,18 +134,18 @@ function collectManifestReferences(manifest) {
     add(resource.path),
   );
 
-  return [...references].sort(comparePaths);
+  return [...references].sort();
 }
 
-function globMatches(pattern, candidate) {
+function globToRegExp(pattern) {
   const expression = pattern
     .split("*")
     .map((part) => part.replace(/[|\\{}()[\]^$+?.]/g, "\\$&"))
     .join(".*");
-  return new RegExp(`^${expression}$`).test(candidate);
+  return new RegExp(`^${expression}$`);
 }
 
-function validateManifest(manifest, files) {
+function validateManifestMetadata(manifest) {
   invariant(manifest.manifest_version === 3, "manifest_version must be 3");
   invariant(
     typeof manifest.name === "string" &&
@@ -169,7 +167,9 @@ function validateManifest(manifest, files) {
   for (const part of manifest.version.split(".")) {
     invariant(Number(part) <= 65535, "manifest version parts must be <= 65535");
   }
+}
 
+function validateManifestIcons(manifest) {
   invariant(
     manifest.icons && typeof manifest.icons === "object",
     "manifest icons are required for a Web Store release",
@@ -180,16 +180,16 @@ function validateManifest(manifest, files) {
       `manifest icons must include a ${size}px icon`,
     );
   }
+}
 
+function validateManifestSecurity(manifest) {
   const manifestText = JSON.stringify(manifest);
   invariant(
     !/<all_urls>/i.test(manifestText),
     "Broad <all_urls> access is not allowed in the production package",
   );
   invariant(
-    !/\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0|terminal\.local)\b/i.test(
-      manifestText,
-    ),
+    !DEV_ORIGIN_PATTERN.test(manifestText),
     "Development-only origin found in production manifest",
   );
   const extensionCsp = manifest.content_security_policy?.extension_pages;
@@ -200,18 +200,28 @@ function validateManifest(manifest, files) {
       "Extension CSP must execute packaged scripts only",
     );
   }
+}
 
+function validateManifestReferences(manifest, files) {
   const fileSet = new Set(files);
   for (const reference of collectManifestReferences(manifest)) {
     if (reference.includes("*")) {
+      const pattern = globToRegExp(reference);
       invariant(
-        files.some((file) => globMatches(reference, file)),
+        files.some((file) => pattern.test(file)),
         `Manifest pattern does not match a packaged file: ${reference}`,
       );
     } else {
       invariant(fileSet.has(reference), `Missing manifest file: ${reference}`);
     }
   }
+}
+
+function validateManifest(manifest, files) {
+  validateManifestMetadata(manifest);
+  validateManifestIcons(manifest);
+  validateManifestSecurity(manifest);
+  validateManifestReferences(manifest, files);
 }
 
 function validatePngIcon(buffer, expectedSize, path) {
@@ -230,7 +240,7 @@ function validatePngIcon(buffer, expectedSize, path) {
 
 const FORBIDDEN_SOURCE_PATTERNS = [
   {
-    expression: /\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0|terminal\.local)\b/i,
+    expression: DEV_ORIGIN_PATTERN,
     reason: "development-only hostname",
   },
   {
@@ -301,48 +311,36 @@ function collectLocalRuntimeReferences(text, sourcePath) {
   return references;
 }
 
-async function validatePackageSource(sourceDir, files, manifest) {
-  const fileSet = new Set(files);
-  for (const file of files) {
-    const buffer = await readFile(resolve(sourceDir, file));
-    if (
-      [".css", ".html", ".js", ".json", ".mjs", ".svg"].includes(
-        extname(file).toLowerCase(),
-      )
-    ) {
-      const source = buffer.toString("utf8");
-      validateSourceText(source, file);
-      for (const reference of collectLocalRuntimeReferences(source, file)) {
-        invariant(fileSet.has(reference), `Missing runtime file: ${reference}`);
-      }
-    }
-  }
-
-  for (const size of REQUIRED_ICON_SIZES) {
-    const path = normalizeRelativePath(manifest.icons[String(size)]);
+async function validateIconMap(sourceDir, iconMap, label) {
+  for (const [sizeText, iconPath] of Object.entries(iconMap)) {
+    const size = Number(sizeText);
+    const path = normalizeRelativePath(iconPath);
+    invariant(
+      Number.isInteger(size) && size > 0,
+      `Invalid ${label} size: ${sizeText}`,
+    );
     invariant(
       path.toLowerCase().endsWith(".png"),
-      `Manifest icon must be PNG: ${path}`,
+      `${label} must be PNG: ${path}`,
     );
     validatePngIcon(await readFile(resolve(sourceDir, path)), size, path);
   }
+}
 
-  if (manifest.action?.default_icon) {
-    for (const [sizeText, iconPath] of Object.entries(
-      manifest.action.default_icon,
-    )) {
-      const size = Number(sizeText);
-      const path = normalizeRelativePath(iconPath);
-      invariant(
-        Number.isInteger(size) && size > 0,
-        `Invalid action icon size: ${sizeText}`,
-      );
-      invariant(
-        path.toLowerCase().endsWith(".png"),
-        `Action icon must be PNG: ${path}`,
-      );
-      validatePngIcon(await readFile(resolve(sourceDir, path)), size, path);
+async function validatePackageSource(sourceDir, files, manifest) {
+  const fileSet = new Set(files);
+  for (const file of files) {
+    if (!TEXT_EXTENSIONS.has(extname(file).toLowerCase())) continue;
+    const source = await readFile(resolve(sourceDir, file), "utf8");
+    validateSourceText(source, file);
+    for (const reference of collectLocalRuntimeReferences(source, file)) {
+      invariant(fileSet.has(reference), `Missing runtime file: ${reference}`);
     }
+  }
+
+  await validateIconMap(sourceDir, manifest.icons, "Manifest icon");
+  if (manifest.action?.default_icon) {
+    await validateIconMap(sourceDir, manifest.action.default_icon, "Action icon");
   }
 }
 
@@ -356,7 +354,9 @@ function crc32(buffer) {
     return value >>> 0;
   });
   let checksum = 0xffffffff;
-  for (const byte of buffer) checksum = crcTable[(checksum ^ byte) & 0xff] ^ (checksum >>> 8);
+  for (let index = 0; index < buffer.length; index += 1) {
+    checksum = crcTable[(checksum ^ buffer[index]) & 0xff] ^ (checksum >>> 8);
+  }
   return (checksum ^ 0xffffffff) >>> 0;
 }
 

@@ -124,6 +124,14 @@
     yawn: "aligned", pleading: "aligned", sigh: "aligned",
     warning: "warning", celebrate: "celebrate",
   };
+  // relative weights for ambient micro-expressions, per mood
+  const MICRO_POOLS = {
+    paused: [["blink", 25], ["glance", 30], ["pleading", 25], ["nod", 20]],
+    skeptic: [["blink", 30], ["glance", 20], ["skeptic", 28], ["pleading", 12], ["nod", 10]],
+    idle: [["blink", 38], ["glance", 20], ["yawn", 14], ["skeptic", 10], ["nod", 12], ["wink", 6]],
+    overtimeSettled: [["blink", 20], ["sigh", 30], ["glance", 20], ["skeptic", 15], ["pleading", 15]],
+    default: [["blink", 50], ["glance", 20], ["skeptic", 8], ["nod", 14], ["wink", 8]],
+  };
   const MICRO_TIMING = {
     blink: { inMs: 70, holdMs: () => 90, outMs: 90 },
     glance: { inMs: 180, holdMs: () => 950 + Math.random() * 700, outMs: 200 },
@@ -180,6 +188,18 @@
     normal: { on: "#4a2717", ghost: "rgba(74, 39, 23, .075)" },
     overtime: { on: "#a8241a", ghost: "rgba(168, 36, 26, .08)" },
   };
+
+  // ---------------------------------------------------------------- shared constants
+  // mirrored from extension/timer-state.js and service-worker.js, which this
+  // classic script cannot import
+  const TIMER_STATE_KEY = "timerState";
+  const OVERLAY_POSITION_KEY = "overlayPosition";
+  const SOUND_MUTED_KEY = "soundMuted";
+  const DEFAULT_POSITION = { right: 24, top: 24 };
+  const DEFAULT_DURATION_MS = 90_000;
+  const MAX_DURATION_MS = 5_999_000;
+  const STEP_MIN_MS = 15_000;
+  const TYPED_MIN_MS = 5_000;
 
   shadow.innerHTML = String.raw`
     <style>
@@ -320,14 +340,14 @@
       .step-button:active { background: #4a4d51; }
       .stepper-readout { display: grid; justify-items: center; gap: 2px; }
       .stepper-time {
-        width: 100%; padding: 0; text-align: center;
+        width: 100%; padding: 2px 0; text-align: center;
         color: #f1f3f4; background: transparent; border: 0; border-radius: 8px;
         font-size: 22px; font-weight: 750;
         font-variant-numeric: tabular-nums; letter-spacing: .04em;
         caret-color: #a8c7fa;
       }
       .stepper-time:hover { background: rgba(255,255,255,.05); }
-      .stepper-time:focus { background: rgba(255,255,255,.08); outline: 2px solid #a8c7fa; outline-offset: 1px; }
+      .stepper-time:focus { background: rgba(255,255,255,.08); outline: 2px solid #a8c7fa; outline-offset: -2px; }
       .stepper-hint {
         color: #9aa0a6; font-size: 9px; font-weight: 700;
         letter-spacing: .09em; text-transform: uppercase;
@@ -434,6 +454,7 @@
   const setup = shadow.querySelector(".setup");
   const setupToggle = shadow.querySelector(".setup-toggle");
   const stepperTime = shadow.querySelector(".stepper-time");
+  const presetButtons = [...shadow.querySelectorAll(".preset")];
   const connectionMessage = shadow.querySelector(".connection-message");
   const scene = shadow.querySelector(".scene");
   const sceneContext = scene.getContext("2d", { alpha: false });
@@ -450,16 +471,16 @@
   const frames = {};
   for (const name of FRAME_NAMES) {
     const image = new Image();
-    image.addEventListener("load", () => {
-      if (name === "focused") requestPaint();
-    }, { signal: listeners.signal });
     image.src = chrome.runtime.getURL(`assets/maya-${name}.webp`);
     frames[name] = image;
   }
+  frames.focused.addEventListener("load", () => requestPaint(), {
+    signal: listeners.signal,
+  });
 
   // ---------------------------------------------------------------- time helpers
   function remaining(now = Date.now()) {
-    if (!state) return 90_000;
+    if (!state) return DEFAULT_DURATION_MS;
     if (state.status === "running" && state.deadlineEpochMs) {
       return Math.max(0, state.deadlineEpochMs - now);
     }
@@ -497,7 +518,6 @@
   let audioContext = null;
 
   function ensureAudio() {
-    if (soundMuted) return null;
     try {
       audioContext ??= new AudioContext();
       if (audioContext.state === "suspended") void audioContext.resume();
@@ -505,6 +525,12 @@
     } catch {
       return null;
     }
+  }
+
+  function withAudio(play) {
+    if (soundMuted || document.visibilityState !== "visible") return;
+    const context = ensureAudio();
+    if (context) play(context);
   }
 
   function envelope(context, gainValue, start, duration) {
@@ -526,48 +552,44 @@
     oscillator.stop(start + duration + 0.05);
   }
 
-  function audible() {
-    return !soundMuted && document.visibilityState === "visible";
-  }
-
   function playTick(secondsLeft) {
-    const context = audible() && ensureAudio();
-    if (!context) return;
-    playNote(context, {
-      frequency: 1020 + (10 - secondsLeft) * 42,
-      type: "triangle",
-      gain: 0.13,
-      duration: 0.07,
+    withAudio((context) => {
+      playNote(context, {
+        frequency: 1020 + (10 - secondsLeft) * 42,
+        type: "triangle",
+        gain: 0.13,
+        duration: 0.07,
+      });
     });
   }
 
   function playHeadsUp() {
-    const context = audible() && ensureAudio();
-    if (!context) return;
-    playNote(context, { frequency: 660, gain: 0.1, duration: 0.11 });
-    playNote(context, { frequency: 880, gain: 0.1, at: 0.12, duration: 0.16 });
+    withAudio((context) => {
+      playNote(context, { frequency: 660, gain: 0.1, duration: 0.11 });
+      playNote(context, { frequency: 880, gain: 0.1, at: 0.12, duration: 0.16 });
+    });
   }
 
   function playChime() {
-    const context = audible() && ensureAudio();
-    if (!context) return;
-    const notes = [523.25, 659.25, 783.99];
-    notes.forEach((frequency, index) => {
-      playNote(context, { frequency, gain: 0.15, at: index * 0.13, duration: 0.55 });
-      playNote(context, { frequency: frequency * 2, type: "triangle", gain: 0.05, at: index * 0.13, duration: 0.4 });
+    withAudio((context) => {
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((frequency, index) => {
+        playNote(context, { frequency, gain: 0.15, at: index * 0.13, duration: 0.55 });
+        playNote(context, { frequency: frequency * 2, type: "triangle", gain: 0.05, at: index * 0.13, duration: 0.4 });
+      });
+      playNote(context, { frequency: 1046.5, gain: 0.09, at: 0.42, duration: 0.7 });
     });
-    playNote(context, { frequency: 1046.5, gain: 0.09, at: 0.42, duration: 0.7 });
   }
 
   function playNag(level) {
-    const context = audible() && ensureAudio();
-    if (!context) return;
-    const base = 580 + Math.min(level, 4) * 36;
-    playNote(context, { frequency: base, type: "triangle", gain: 0.12, duration: 0.06 });
-    playNote(context, { frequency: base, type: "triangle", gain: 0.12, at: 0.16, duration: 0.06 });
-    if (level >= 3) {
-      playNote(context, { frequency: base * 1.12, type: "triangle", gain: 0.11, at: 0.32, duration: 0.06 });
-    }
+    withAudio((context) => {
+      const base = 580 + Math.min(level, 4) * 36;
+      playNote(context, { frequency: base, type: "triangle", gain: 0.12, duration: 0.06 });
+      playNote(context, { frequency: base, type: "triangle", gain: 0.12, at: 0.16, duration: 0.06 });
+      if (level >= 3) {
+        playNote(context, { frequency: base * 1.12, type: "triangle", gain: 0.11, at: 0.32, duration: 0.06 });
+      }
+    });
   }
 
   // ---------------------------------------------------------------- captions
@@ -620,16 +642,11 @@
     queuedMicro: null,
   };
 
+  // moods match phases except where Maya dramatizes
+  const MOOD_BY_PHASE = { final: "panic", warning: "urgent", half: "skeptic" };
+
   function moodFor(phase) {
-    if (phase === "final") return "panic";
-    if (phase === "warning") return "urgent";
-    if (phase === "half") return "skeptic";
-    if (phase === "celebrate") return "celebrate";
-    if (phase === "overtime") return "overtime";
-    if (phase === "overtimeSettled") return "overtimeSettled";
-    if (phase === "paused") return "paused";
-    if (phase === "idle") return "idle";
-    return "calm";
+    return MOOD_BY_PHASE[phase] ?? phase;
   }
 
   function baseFrameFor(mood) {
@@ -653,36 +670,33 @@
     motion.baseFrame = nextBase;
   }
 
-  function queueNod() {
-    motion.queuedMicro = Math.random() < 0.4 ? "wink" : "nod";
-  }
-
   function queueMicro(frame) {
     motion.queuedMicro = frame;
   }
 
+  function queueAcknowledgement() {
+    queueMicro(Math.random() < 0.4 ? "wink" : "nod");
+  }
+
+  function pickWeighted(pool) {
+    const total = pool.reduce((sum, [, weight]) => sum + weight, 0);
+    let roll = Math.random() * total;
+    for (const [frame, weight] of pool) {
+      roll -= weight;
+      if (roll < 0) return frame;
+    }
+    return pool[pool.length - 1][0];
+  }
+
   function scheduleMicro(now) {
-    const mood = motion.mood;
     if (FRAME_GROUP[motion.baseFrame] !== "aligned") {
       motion.microNextAt = now + 900;
       return;
     }
-    let frame;
-    const roll = Math.random();
-    if (motion.queuedMicro) {
-      frame = motion.queuedMicro;
-      motion.queuedMicro = null;
-    } else if (mood === "paused") {
-      frame = roll < 0.25 ? "blink" : roll < 0.55 ? "glance" : roll < 0.8 ? "pleading" : "nod";
-    } else if (mood === "skeptic") {
-      frame = roll < 0.3 ? "blink" : roll < 0.5 ? "glance" : roll < 0.78 ? "skeptic" : roll < 0.9 ? "pleading" : "nod";
-    } else if (mood === "idle") {
-      frame = roll < 0.38 ? "blink" : roll < 0.58 ? "glance" : roll < 0.72 ? "yawn" : roll < 0.82 ? "skeptic" : roll < 0.94 ? "nod" : "wink";
-    } else if (mood === "overtimeSettled") {
-      frame = roll < 0.2 ? "blink" : roll < 0.5 ? "sigh" : roll < 0.7 ? "glance" : roll < 0.85 ? "skeptic" : "pleading";
-    } else {
-      frame = roll < 0.5 ? "blink" : roll < 0.7 ? "glance" : roll < 0.78 ? "skeptic" : roll < 0.92 ? "nod" : "wink";
-    }
+    let frame =
+      motion.queuedMicro ??
+      pickWeighted(MICRO_POOLS[motion.mood] ?? MICRO_POOLS.default);
+    motion.queuedMicro = null;
     if (!frames[frame]?.naturalWidth) frame = "blink";
     const timing = MICRO_TIMING[frame];
     motion.micro = {
@@ -746,58 +760,100 @@
     };
   }
 
-  function fillMappedPolygon(quad, points, offsetX, color, scaleX = 1, offsetY = 0) {
-    sceneContext.beginPath();
-    points.forEach(([x, y], index) => {
-      const mapped = mapDisplayPoint(quad, x * scaleX + offsetX, y + offsetY);
-      if (index === 0) sceneContext.moveTo(mapped.x, mapped.y);
-      else sceneContext.lineTo(mapped.x, mapped.y);
-    });
-    sceneContext.closePath();
-    sceneContext.fillStyle = color;
-    sceneContext.fill();
-  }
-
-  function fillMappedCircle(quad, centerX, centerY, radius, color) {
-    const points = Array.from({ length: 16 }, (_, index) => {
+  function circlePoints(centerX, centerY, radius) {
+    return Array.from({ length: 16 }, (_, index) => {
       const angle = (Math.PI * 2 * index) / 16;
       return [
         centerX + Math.cos(angle) * radius,
         centerY + Math.sin(angle) * radius,
       ];
     });
-    fillMappedPolygon(quad, points, 0, color);
   }
 
-  function drawTimerDisplay(quad, value, isOvertime) {
+  // the display geometry is static per frame group, so the perspective mapping
+  // runs once here instead of on every animation frame
+  const displayGeometryCache = new Map();
+
+  function displayGeometry(group) {
+    const cached = displayGeometryCache.get(group);
+    if (cached) return cached;
+
+    const quad = DISPLAY_QUADS[group];
+    const mapPolygon = (points, offsetX = 0, scaleX = 1, offsetY = 0) =>
+      points.map(([x, y]) => mapDisplayPoint(quad, x * scaleX + offsetX, y + offsetY));
+    const geometry = {
+      digitSlots: DIGIT_OFFSETS.map((offsetX) =>
+        SEGMENTS.map(([segment, points]) => [
+          segment,
+          mapPolygon(points, offsetX, DIGIT_SCALE_X, DIGIT_OFFSET_Y),
+        ]),
+      ),
+      colonDots: [circlePoints(110, 45, 3.5), circlePoints(110, 76, 3.5)].map(
+        (points) => mapPolygon(points),
+      ),
+      plusGlyph: PLUS_GLYPH.map((points) => mapPolygon(points)),
+    };
+    displayGeometryCache.set(group, geometry);
+    return geometry;
+  }
+
+  function fillPolygon(points, color) {
+    sceneContext.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) sceneContext.moveTo(point.x, point.y);
+      else sceneContext.lineTo(point.x, point.y);
+    });
+    sceneContext.closePath();
+    sceneContext.fillStyle = color;
+    sceneContext.fill();
+  }
+
+  function drawTimerDisplay(group, value, isOvertime) {
     const colors = isOvertime ? DIGIT_COLORS.overtime : DIGIT_COLORS.normal;
+    const geometry = displayGeometry(group);
     const digits = value.replace(":", "").split("");
     for (const [digitIndex, digit] of digits.entries()) {
       const activeSegments = DIGIT_SEGMENTS[digit] ?? "";
-      for (const [segment, points] of SEGMENTS) {
-        fillMappedPolygon(quad, points, DIGIT_OFFSETS[digitIndex], colors.ghost, DIGIT_SCALE_X, DIGIT_OFFSET_Y);
-        if (activeSegments.includes(segment)) {
-          fillMappedPolygon(quad, points, DIGIT_OFFSETS[digitIndex], colors.on, DIGIT_SCALE_X, DIGIT_OFFSET_Y);
-        }
+      for (const [segment, points] of geometry.digitSlots[digitIndex]) {
+        fillPolygon(
+          points,
+          activeSegments.includes(segment) ? colors.on : colors.ghost,
+        );
       }
     }
 
     // colon blinks once per second while the meeting runs long
     const colonVisible = !isOvertime || Math.floor(Date.now() / 500) % 2 === 0;
     if (colonVisible) {
-      fillMappedCircle(quad, 110, 45, 3.5, colors.on);
-      fillMappedCircle(quad, 110, 76, 3.5, colors.on);
+      for (const dot of geometry.colonDots) fillPolygon(dot, colors.on);
     }
     if (isOvertime) {
-      for (const points of PLUS_GLYPH) {
-        fillMappedPolygon(quad, points, 0, colors.on);
-      }
+      for (const points of geometry.plusGlyph) fillPolygon(points, colors.on);
     }
+  }
+
+  // updated by the ResizeObserver below so drawScene never forces page layout
+  let sceneCssWidth = 0;
+
+  // slight overdraw hides edge gaps introduced by the motion transform
+  const FRAME_OVERDRAW = 8;
+
+  function drawFrame(image, alpha = 1) {
+    if (!image?.complete || !image.naturalWidth) return;
+    sceneContext.globalAlpha = alpha;
+    sceneContext.drawImage(
+      image,
+      -FRAME_OVERDRAW,
+      -FRAME_OVERDRAW,
+      SCENE_SIZE.width + FRAME_OVERDRAW * 2,
+      SCENE_SIZE.height + FRAME_OVERDRAW * 2,
+    );
+    sceneContext.globalAlpha = 1;
   }
 
   function drawScene(nowPerf = performance.now()) {
     if (disposed || !sceneContext) return;
-    const cssWidth = scene.getBoundingClientRect().width || overlay.offsetWidth || 360;
+    const cssWidth = sceneCssWidth || overlay.offsetWidth || 360;
     const cssHeight = cssWidth * (SCENE_SIZE.height / SCENE_SIZE.width);
     const pixelRatio = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
     const targetWidth = Math.max(1, Math.round(cssWidth * pixelRatio));
@@ -859,34 +915,19 @@
     sceneContext.rotate(rotate);
     sceneContext.scale(scale, scale);
     sceneContext.translate(-centerX, -centerY);
-    // slight overdraw hides edge gaps introduced by the motion transform
-    const pad = 8;
 
-    const baseImage = frames[motion.baseFrame];
-    if (baseImage?.complete && baseImage.naturalWidth > 0) {
-      sceneContext.drawImage(baseImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
-    }
+    drawFrame(frames[motion.baseFrame]);
     if (!reduced && FRAME_GROUP[motion.baseFrame] === "aligned") {
-      const talking = nowPerf < talkUntil;
-      if (talking) {
+      if (nowPerf < talkUntil) {
         // mouth flaps: hard swaps through talk-a / talk-b / closed, like anime
         const beat = Math.floor(nowPerf / 130) % 3;
-        const talkFrame = beat === 0 ? frames["talk-a"] : beat === 1 ? frames["talk-b"] : null;
-        if (talkFrame?.complete && talkFrame.naturalWidth > 0) {
-          sceneContext.drawImage(talkFrame, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
-        }
+        if (beat < 2) drawFrame(frames[beat === 0 ? "talk-a" : "talk-b"]);
       } else if (motion.micro.alpha > 0) {
-        const microImage = frames[motion.micro.frame];
-        if (microImage?.complete && microImage.naturalWidth > 0) {
-          sceneContext.globalAlpha = motion.micro.alpha;
-          sceneContext.drawImage(microImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
-          sceneContext.globalAlpha = 1;
-        }
+        drawFrame(frames[motion.micro.frame], motion.micro.alpha);
       }
     }
 
-    const quad = DISPLAY_QUADS[FRAME_GROUP[motion.baseFrame]];
-    drawTimerDisplay(quad, displayedTime, displayedOvertime);
+    drawTimerDisplay(FRAME_GROUP[motion.baseFrame], displayedTime, displayedOvertime);
     sceneContext.restore();
 
     if (!reduced && motion.flashAlpha > 0.01) {
@@ -941,7 +982,10 @@
     motion.pointer.y = Math.max(-1.4, Math.min(1.4, (event.clientY / window.innerHeight - 0.5) * 2.8));
   }, { passive: true, signal: listeners.signal });
 
-  const sceneResizeObserver = new ResizeObserver(() => requestPaint());
+  const sceneResizeObserver = new ResizeObserver((entries) => {
+    sceneCssWidth = entries[entries.length - 1].contentRect.width;
+    requestPaint();
+  });
   sceneResizeObserver.observe(scene);
 
   // ---------------------------------------------------------------- render + transitions
@@ -951,6 +995,8 @@
   let prevOvertimeMinute = -1;
   let lastAmbientAt = performance.now();
   const PHASE_RANK = { calm: 0, half: 1, warning: 2, final: 3 };
+  const STATUS_LABELS = { idle: "Ready", running: "Live", paused: "Paused", done: "Over" };
+  const TOGGLE_MODES = { idle: "start", running: "pause", paused: "resume", done: "again" };
 
   function detectTransitions(now) {
     const status = state?.status ?? "idle";
@@ -1012,24 +1058,14 @@
     setMood(moodFor(phase));
   }
 
-  function render() {
-    if (disposed) return;
-    const now = Date.now();
-    const status = state?.status ?? "idle";
-    const phase = currentPhase(now);
-    const isOvertime = status === "done";
-    const milliseconds = isOvertime ? overtime(now) : remaining(now);
-    const shownMs = isOvertime
-      ? Math.floor(milliseconds / 1000) * 1000
-      : milliseconds;
-    const formatted = formatTime(shownMs);
+  function durationText() {
+    return formatTime(state?.durationMs ?? DEFAULT_DURATION_MS);
+  }
+
+  function paintChrome(now, status, phase, isOvertime, milliseconds) {
     const totalSeconds = Math.max(0, isOvertime ? Math.floor(milliseconds / 1000) : Math.ceil(milliseconds / 1000));
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-
-    displayedTime = formatted;
-    displayedOvertime = isOvertime;
-    if (prefersReducedMotion.matches || !animationFrame) requestPaint();
 
     timerReading.textContent = isOvertime
       ? `over by ${minutes} minutes ${seconds} seconds`
@@ -1037,22 +1073,41 @@
     overlay.dataset.status = status;
     overlay.dataset.phase = phase;
     overlay.classList.toggle("is-urgent", status === "running" && remaining(now) <= 10_000);
-    statusText.textContent =
-      status === "idle" ? "Ready"
-      : status === "running" ? "Live"
-      : status === "paused" ? "Paused"
-      : "Over";
+    statusText.textContent = STATUS_LABELS[status] ?? "Ready";
 
-    const toggleMode = status === "running" ? "pause" : status === "paused" ? "resume" : status === "done" ? "again" : "start";
+    const toggleMode = TOGGLE_MODES[status] ?? "start";
     toggleIcon.textContent = status === "running" ? "Ⅱ" : "▶";
     toggleCaption.textContent = toggleMode;
     toggle.setAttribute("aria-label", `${toggleMode[0].toUpperCase()}${toggleMode.slice(1)} timer`);
 
-    shadow.querySelectorAll(".preset").forEach((button) => {
+    for (const button of presetButtons) {
       button.setAttribute("aria-pressed", String(Number(button.dataset.durationMs) === state?.durationMs));
-    });
+    }
     if (!stepping && shadow.activeElement !== stepperTime) {
-      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+      stepperTime.value = durationText();
+    }
+  }
+
+  let paintedChromeKey = "";
+
+  function render(now = Date.now()) {
+    if (disposed) return;
+    const status = state?.status ?? "idle";
+    const phase = currentPhase(now);
+    const isOvertime = status === "done";
+    const milliseconds = isOvertime ? overtime(now) : remaining(now);
+
+    displayedTime = formatTime(
+      isOvertime ? Math.floor(milliseconds / 1000) * 1000 : milliseconds,
+    );
+    displayedOvertime = isOvertime;
+    if (prefersReducedMotion.matches || !animationFrame) requestPaint();
+
+    // the visible chrome only changes when one of these changes
+    const chromeKey = `${status}|${phase}|${displayedTime}|${state?.durationMs}`;
+    if (chromeKey !== paintedChromeKey) {
+      paintedChromeKey = chromeKey;
+      paintChrome(now, status, phase, isOvertime, milliseconds);
     }
 
     if (status === "running" && remaining(now) <= 0 && !expirationSent) {
@@ -1065,8 +1120,9 @@
 
   function tick() {
     if (disposed) return;
-    detectTransitions(Date.now());
-    render();
+    const now = Date.now();
+    detectTransitions(now);
+    render(now);
   }
 
   // ---------------------------------------------------------------- messaging
@@ -1125,12 +1181,15 @@
 
   async function restorePosition() {
     try {
-      const saved = await chrome.storage.local.get("overlayPosition");
+      const saved = await chrome.storage.local.get(OVERLAY_POSITION_KEY);
       if (disposed) return;
-      const position = saved.overlayPosition ?? { right: 24, top: 24 };
+      const position = saved[OVERLAY_POSITION_KEY] ?? DEFAULT_POSITION;
       applyPosition(window.innerWidth - overlay.offsetWidth - position.right, position.top);
     } catch {
-      applyPosition(window.innerWidth - overlay.offsetWidth - 24, 24);
+      applyPosition(
+        window.innerWidth - overlay.offsetWidth - DEFAULT_POSITION.right,
+        DEFAULT_POSITION.top,
+      );
     }
   }
 
@@ -1138,7 +1197,7 @@
     const rect = overlay.getBoundingClientRect();
     try {
       void chrome.storage.local.set({
-        overlayPosition: {
+        [OVERLAY_POSITION_KEY]: {
           right: Math.max(8, window.innerWidth - rect.right),
           top: rect.top,
         },
@@ -1178,15 +1237,19 @@
     persistPosition();
   }
 
+  // resize storms fire this dozens of times; reposition now, persist once
+  let persistTimeout = 0;
+
   function keepVisible() {
     const rect = overlay.getBoundingClientRect();
     applyPosition(rect.left, rect.top);
-    persistPosition();
+    window.clearTimeout(persistTimeout);
+    persistTimeout = window.setTimeout(persistPosition, 200);
   }
 
   // ---------------------------------------------------------------- setup tray
   let stepping = false;
-  let pendingDurationMs = 90_000;
+  let pendingDurationMs = DEFAULT_DURATION_MS;
   let stepCommitTimeout = 0;
   let stepRepeatTimeout = 0;
   let stepRepeatInterval = 0;
@@ -1200,9 +1263,9 @@
   function applyStep(stepMs) {
     if (!stepping) {
       stepping = true;
-      pendingDurationMs = state?.durationMs ?? 90_000;
+      pendingDurationMs = state?.durationMs ?? DEFAULT_DURATION_MS;
     }
-    pendingDurationMs = Math.max(15_000, Math.min(5_999_000, pendingDurationMs + stepMs));
+    pendingDurationMs = Math.max(STEP_MIN_MS, Math.min(MAX_DURATION_MS, pendingDurationMs + stepMs));
     stepperTime.value = formatTime(pendingDurationMs);
     window.clearTimeout(stepCommitTimeout);
     stepCommitTimeout = window.setTimeout(commitPendingDuration, 350);
@@ -1219,7 +1282,7 @@
     const isOpen = !setup.classList.contains("is-open");
     setup.classList.toggle("is-open", isOpen);
     setupToggle.setAttribute("aria-expanded", String(isOpen));
-    if (isOpen) stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+    if (isOpen) stepperTime.value = durationText();
     window.requestAnimationFrame(keepVisible);
   }
 
@@ -1273,20 +1336,24 @@
     }
     const totalSeconds = minutes * 60 + seconds;
     if (!totalSeconds) return null;
-    return Math.max(5_000, Math.min(5_999_000, totalSeconds * 1000));
+    return Math.max(TYPED_MIN_MS, Math.min(MAX_DURATION_MS, totalSeconds * 1000));
+  }
+
+  function applyDuration(durationMs) {
+    void sendTimerAction("set-duration", durationMs);
+    showCaption("durationSet");
+    queueAcknowledgement();
   }
 
   function commitTypedDuration() {
     const parsed = parseTypedDuration(stepperTime.value);
     stepperHint.textContent = STEPPER_HINT_DEFAULT;
     if (parsed === null || parsed === state?.durationMs) {
-      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+      stepperTime.value = durationText();
       return;
     }
     stepperTime.value = formatTime(parsed);
-    void sendTimerAction("set-duration", parsed);
-    showCaption("durationSet");
-    queueNod();
+    applyDuration(parsed);
   }
 
   stepperTime.addEventListener("focus", () => stepperTime.select(), { signal: listeners.signal });
@@ -1303,18 +1370,16 @@
       stepperTime.blur();
     } else if (event.key === "Escape") {
       event.preventDefault();
-      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+      stepperTime.value = durationText();
       stepperHint.textContent = STEPPER_HINT_DEFAULT;
       stepperTime.blur();
     }
   }, { signal: listeners.signal });
   stepperTime.addEventListener("blur", commitTypedDuration, { signal: listeners.signal });
 
-  shadow.querySelectorAll("[data-duration-ms]").forEach((button) => {
+  presetButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      void sendTimerAction("set-duration", Number(button.dataset.durationMs));
-      showCaption("durationSet");
-      queueNod();
+      applyDuration(Number(button.dataset.durationMs));
     }, { signal: listeners.signal });
   });
 
@@ -1329,7 +1394,7 @@
     paintSoundToggle();
     showCaption(soundMuted ? "muted" : "unmuted", 3_200);
     try {
-      void chrome.storage.local.set({ soundMuted }).catch(() => {});
+      void chrome.storage.local.set({ [SOUND_MUTED_KEY]: soundMuted }).catch(() => {});
     } catch {}
   }, { signal: listeners.signal });
 
@@ -1345,6 +1410,7 @@
     window.clearInterval(intervalId);
     window.clearTimeout(captionTimeout);
     window.clearTimeout(stepCommitTimeout);
+    window.clearTimeout(persistTimeout);
     stopStepRepeat();
     stopMotion();
     sceneResizeObserver.disconnect();
@@ -1359,12 +1425,13 @@
 
   function receiveStorageChange(changes, areaName) {
     if (areaName !== "local" || disposed) return;
-    if (changes.soundMuted && typeof changes.soundMuted.newValue === "boolean") {
-      soundMuted = changes.soundMuted.newValue;
+    const mutedChange = changes[SOUND_MUTED_KEY];
+    if (mutedChange && typeof mutedChange.newValue === "boolean") {
+      soundMuted = mutedChange.newValue;
       paintSoundToggle();
     }
-    if (changes.timerState?.newValue) {
-      state = changes.timerState.newValue;
+    if (changes[TIMER_STATE_KEY]?.newValue) {
+      state = changes[TIMER_STATE_KEY].newValue;
       tick();
     }
   }
@@ -1388,13 +1455,13 @@
         if (statusBefore === "running") showCaption("paused");
         else if (statusBefore === "paused") showCaption("resumed");
         else showCaption("start");
-        queueNod();
+        queueAcknowledgement();
       } else if (action === "add-30") {
         showCaption("added");
-        queueNod();
+        queueAcknowledgement();
       } else if (action === "subtract-30") {
         showCaption("subtracted");
-        queueNod();
+        queueAcknowledgement();
       } else if (action === "reset") {
         showCaption("reset");
       }
@@ -1407,9 +1474,9 @@
   chrome.storage.local.onChanged.addListener(receiveStorageChange);
   void restorePosition();
   try {
-    chrome.storage.local.get("soundMuted").then((saved) => {
+    chrome.storage.local.get(SOUND_MUTED_KEY).then((saved) => {
       if (disposed) return;
-      soundMuted = saved.soundMuted === true;
+      soundMuted = saved[SOUND_MUTED_KEY] === true;
       paintSoundToggle();
     }).catch(() => {});
   } catch {}

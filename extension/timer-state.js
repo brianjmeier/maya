@@ -1,4 +1,4 @@
-export const MIN_DURATION_MS = 1_000;
+const MIN_DURATION_MS = 1_000;
 export const MAX_DURATION_MS = 5_999_000;
 export const DEFAULT_DURATION_MS = 90_000;
 
@@ -20,6 +20,15 @@ function clampDuration(value, fallback = DEFAULT_DURATION_MS) {
 
 function nextRevision(state) {
   return Number.isSafeInteger(state.revision) ? state.revision + 1 : 1;
+}
+
+function commit(state, changes, now) {
+  return {
+    ...state,
+    ...changes,
+    revision: nextRevision(state),
+    updatedAt: now,
+  };
 }
 
 export function createDefaultTimerState(now = Date.now()) {
@@ -109,6 +118,99 @@ export function normalizeTimerState(candidate, now = Date.now()) {
   return normalized;
 }
 
+function expire(state, now) {
+  if (state.status !== "running" || remainingFromTimerState(state, now) > 0) {
+    return state;
+  }
+
+  return commit(state, {
+    status: "done",
+    deadlineEpochMs: null,
+    pausedRemainingMs: 0,
+    doneAtEpochMs: Number.isFinite(state.deadlineEpochMs)
+      ? state.deadlineEpochMs
+      : now,
+  }, now);
+}
+
+function reset(state, now) {
+  return commit(state, {
+    status: "idle",
+    deadlineEpochMs: null,
+    pausedRemainingMs: state.durationMs,
+    doneAtEpochMs: null,
+  }, now);
+}
+
+function setDuration(state, durationOverrideMs, now) {
+  const durationMs = clampDuration(durationOverrideMs);
+  return commit(state, {
+    status: "idle",
+    durationMs,
+    deadlineEpochMs: null,
+    pausedRemainingMs: durationMs,
+    doneAtEpochMs: null,
+  }, now);
+}
+
+function toggle(state, now) {
+  if (state.status === "running") {
+    const remainingMs = remainingFromTimerState(state, now);
+    return commit(state, {
+      status: remainingMs > 0 ? "paused" : "done",
+      deadlineEpochMs: null,
+      pausedRemainingMs: remainingMs,
+      doneAtEpochMs: remainingMs > 0 ? null : now,
+    }, now);
+  }
+
+  const remainingMs =
+    state.status === "paused" ? state.pausedRemainingMs : state.durationMs;
+  return commit(state, {
+    status: "running",
+    deadlineEpochMs: now + remainingMs,
+    pausedRemainingMs: remainingMs,
+    doneAtEpochMs: null,
+  }, now);
+}
+
+function adjust(state, adjustmentMs, now) {
+  if (state.status === "done") {
+    // overtime: +30 grants a fresh 30-second countdown, -30 is a no-op
+    if (adjustmentMs < 0) return state;
+
+    return commit(state, {
+      status: "running",
+      deadlineEpochMs: now + 30_000,
+      pausedRemainingMs: 30_000,
+      doneAtEpochMs: null,
+    }, now);
+  }
+
+  if (state.status === "idle") {
+    const durationMs = clampDuration(state.durationMs + adjustmentMs);
+    return commit(state, {
+      status: "idle",
+      durationMs,
+      deadlineEpochMs: null,
+      pausedRemainingMs: durationMs,
+      doneAtEpochMs: null,
+    }, now);
+  }
+
+  const remainingMs = Math.min(
+    MAX_DURATION_MS,
+    Math.max(0, remainingFromTimerState(state, now) + adjustmentMs),
+  );
+  return commit(state, {
+    status: remainingMs > 0 ? state.status : "done",
+    deadlineEpochMs:
+      state.status === "running" && remainingMs > 0 ? now + remainingMs : null,
+    pausedRemainingMs: remainingMs,
+    doneAtEpochMs: remainingMs > 0 ? null : now,
+  }, now);
+}
+
 export function applyTimerAction(
   candidate,
   action,
@@ -116,120 +218,21 @@ export function applyTimerAction(
   durationOverrideMs,
 ) {
   const state = normalizeTimerState(candidate, now);
-  if (!TIMER_ACTIONS.includes(action)) return state;
 
-  if (action === "expire") {
-    if (state.status !== "running" || remainingFromTimerState(state, now) > 0) {
+  switch (action) {
+    case "expire":
+      return expire(state, now);
+    case "reset":
+      return reset(state, now);
+    case "set-duration":
+      return setDuration(state, durationOverrideMs, now);
+    case "toggle":
+      return toggle(state, now);
+    case "add-30":
+      return adjust(state, 30_000, now);
+    case "subtract-30":
+      return adjust(state, -30_000, now);
+    default:
       return state;
-    }
-
-    return {
-      ...state,
-      status: "done",
-      deadlineEpochMs: null,
-      pausedRemainingMs: 0,
-      doneAtEpochMs: Number.isFinite(state.deadlineEpochMs)
-        ? state.deadlineEpochMs
-        : now,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
   }
-
-  if (action === "reset") {
-    return {
-      ...state,
-      status: "idle",
-      deadlineEpochMs: null,
-      pausedRemainingMs: state.durationMs,
-      doneAtEpochMs: null,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
-  }
-
-  if (action === "set-duration") {
-    const durationMs = clampDuration(durationOverrideMs);
-    return {
-      ...state,
-      status: "idle",
-      durationMs,
-      deadlineEpochMs: null,
-      pausedRemainingMs: durationMs,
-      doneAtEpochMs: null,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
-  }
-
-  if (action === "toggle") {
-    if (state.status === "running") {
-      const remainingMs = remainingFromTimerState(state, now);
-      return {
-        ...state,
-        status: remainingMs > 0 ? "paused" : "done",
-        deadlineEpochMs: null,
-        pausedRemainingMs: remainingMs,
-        doneAtEpochMs: remainingMs > 0 ? null : now,
-        revision: nextRevision(state),
-        updatedAt: now,
-      };
-    }
-
-    const remainingMs =
-      state.status === "paused" ? state.pausedRemainingMs : state.durationMs;
-    return {
-      ...state,
-      status: "running",
-      deadlineEpochMs: now + remainingMs,
-      pausedRemainingMs: remainingMs,
-      doneAtEpochMs: null,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
-  }
-
-  const adjustmentMs = action === "add-30" ? 30_000 : -30_000;
-  if (state.status === "done") {
-    if (action === "subtract-30") return state;
-
-    return {
-      ...state,
-      status: "running",
-      deadlineEpochMs: now + 30_000,
-      pausedRemainingMs: 30_000,
-      doneAtEpochMs: null,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
-  }
-
-  if (state.status === "idle") {
-    const durationMs = clampDuration(state.durationMs + adjustmentMs);
-    return {
-      ...state,
-      status: "idle",
-      durationMs,
-      deadlineEpochMs: null,
-      pausedRemainingMs: durationMs,
-      doneAtEpochMs: null,
-      revision: nextRevision(state),
-      updatedAt: now,
-    };
-  }
-
-  const remainingMs = Math.min(
-    MAX_DURATION_MS,
-    Math.max(0, remainingFromTimerState(state, now) + adjustmentMs),
-  );
-  return {
-    ...state,
-    status: remainingMs > 0 ? state.status : "done",
-    deadlineEpochMs:
-      state.status === "running" && remainingMs > 0 ? now + remainingMs : null,
-    pausedRemainingMs: remainingMs,
-    doneAtEpochMs: remainingMs > 0 ? null : now,
-    revision: nextRevision(state),
-    updatedAt: now,
-  };
 }
