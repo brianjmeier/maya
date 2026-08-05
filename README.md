@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="extension/icons/icon-128.png" width="128" height="128" alt="Maya timer icon">
+  <img src="store-listing/assets/promo-small-440x280.png" width="440" height="280" alt="Maya standup timer">
 </p>
 
 # Maya
