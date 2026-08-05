@@ -13,6 +13,10 @@
   and interaction reactions sit beneath warning and celebration sequences.
 - The Chrome extension is part of v1 and must show a draggable, synced overlay above the user’s current board without broad browsing permissions.
 - A Google Meet integration is exploratory v2 work and must not bloat the v1 timer UI.
+- The illustrated clock and digital countdown must read as one physical object at every viewport and throughout Maya's motion; avoid floating HTML chrome over the artwork.
+- For major frontend refinement, combine independent visual critique with a code-quality pass, preserving the timer's radical simplicity.
+- The app chrome should evoke a dark video-conference room: Maya is the single live tile and timer actions replace the usual call-control dock.
+- The digital display must inherit each illustrated timer's tilt, and the red hang-up control should close the window when possible with a reversible ended-call fallback.
 
 Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
 

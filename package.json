@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/prepare-sites-build.mjs",
+    "extension:package": "node scripts/package-extension.mjs",
+    "extension:verify": "node scripts/package-extension.mjs --verify-only",
     "preview": "vite preview",
-    "test": "node --test tests/timer.test.mjs tests/extension.test.mjs",
+    "test": "node --test tests/timer.test.mjs tests/extension.test.mjs tests/extension-package.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
   "dependencies": {

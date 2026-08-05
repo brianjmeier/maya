@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Standup board screenshot fixture</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: #f4f1ea;
+        background: #17191d;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-width: 960px;
+        min-height: 100vh;
+        margin: 0;
+        padding: 28px 34px 38px;
+        background:
+          radial-gradient(circle at 74% -10%, rgba(82, 130, 171, 0.16), transparent 36%),
+          #17191d;
+      }
+
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        margin: 0 auto 24px;
+        max-width: 1212px;
+      }
+
+      .eyebrow {
+        margin: 0 0 5px;
+        color: #f4c95d;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(26px, 3vw, 42px);
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+
+      .room-status {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #c7c8cc;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .room-status::before {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #69c48d;
+        box-shadow: 0 0 0 4px rgba(105, 196, 141, 0.13);
+        content: "";
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        max-width: 1212px;
+        margin: 0 auto;
+      }
+
+      section {
+        min-height: 618px;
+        padding: 15px;
+        border: 1px solid #393d44;
+        border-radius: 18px;
+        background: #202328;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+      }
+
+      .column-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 2px 13px;
+      }
+
+      h2 {
+        margin: 0;
+        color: #e7e4dd;
+        font-size: 12px;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .count {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border-radius: 50%;
+        color: #aeb0b5;
+        background: #2d3036;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      article {
+        position: relative;
+        margin-top: 10px;
+        padding: 15px 15px 13px 18px;
+        border: 1px solid #3b3f46;
+        border-radius: 12px;
+        background: #292c32;
+      }
+
+      article::before {
+        position: absolute;
+        inset: 12px auto 12px 0;
+        width: 3px;
+        border-radius: 0 4px 4px 0;
+        background: var(--accent, #75a9d6);
+        content: "";
+      }
+
+      article p {
+        margin: 0 0 15px;
+        max-width: 29ch;
+        color: #f3f0e9;
+        font-size: 14px;
+        font-weight: 680;
+        line-height: 1.35;
+      }
+
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #989ba2;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .avatar {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border: 2px solid #5c626c;
+        border-radius: 50%;
+        color: #191b1f;
+        background: var(--avatar, #f4c95d);
+        font-size: 10px;
+        font-weight: 950;
+      }
+
+      .blue { --accent: #72a8d4; --avatar: #8cc0e8; }
+      .orange { --accent: #e9783d; --avatar: #ec986c; }
+      .yellow { --accent: #f0c95c; --avatar: #f0c95c; }
+      .green { --accent: #69c48d; --avatar: #89d7a6; }
+      .purple { --accent: #9b8bd6; --avatar: #afa2df; }
+
+      .done p { color: #aeb1b7; text-decoration: line-through; text-decoration-thickness: 1px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">Tuesday standup</p>
+        <h1>Launch room</h1>
+      </div>
+      <div class="room-status">5 teammates connected</div>
+    </header>
+
+    <main aria-label="Sprint board">
+      <section>
+        <div class="column-heading"><h2>Up next</h2><span class="count">3</span></div>
+        <article class="yellow"><p>Polish the onboarding empty state</p><footer><span>DES-118</span><span class="avatar">M</span></footer></article>
+        <article class="blue"><p>Add keyboard controls to the command menu</p><footer><span>WEB-204</span><span class="avatar">J</span></footer></article>
+        <article class="purple"><p>Write the release-day checklist</p><footer><span>OPS-62</span><span class="avatar">A</span></footer></article>
+      </section>
+
+      <section>
+        <div class="column-heading"><h2>In progress</h2><span class="count">3</span></div>
+        <article class="orange"><p>Ship the new billing overview</p><footer><span>WEB-199</span><span class="avatar">R</span></footer></article>
+        <article class="green"><p>Verify mobile navigation states</p><footer><span>QA-88</span><span class="avatar">S</span></footer></article>
+        <article class="blue"><p>Reduce dashboard loading time</p><footer><span>PERF-31</span><span class="avatar">T</span></footer></article>
+      </section>
+
+      <section>
+        <div class="column-heading"><h2>Done</h2><span class="count">3</span></div>
+        <article class="done green"><p>Approve the launch illustration</p><footer><span>DES-113</span><span class="avatar">M</span></footer></article>
+        <article class="done blue"><p>Instrument the signup funnel</p><footer><span>DATA-14</span><span class="avatar">J</span></footer></article>
+        <article class="done yellow"><p>Merge the accessibility fixes</p><footer><span>WEB-196</span><span class="avatar">A</span></footer></article>
+      </section>
+    </main>
+  </body>
+</html>

@@ -20,6 +20,71 @@ const DEFAULT_STATE = {
   updatedAt: 0,
 };
 
+const ART_MOMENTS = [
+  "focused",
+  "blink",
+  "glance",
+  "nod",
+  "warning",
+  "celebrate",
+];
+
+const DIGIT_SEGMENTS = {
+  0: "abcdef",
+  1: "bc",
+  2: "abdeg",
+  3: "abcdg",
+  4: "bcfg",
+  5: "acdfg",
+  6: "acdefg",
+  7: "abc",
+  8: "abcdefg",
+  9: "abcdfg",
+};
+
+const SEGMENTS = [
+  ["a", "10,4 50,4 56,10 50,16 10,16 4,10"],
+  ["b", "50,18 56,12 60,18 60,44 54,50 48,44"],
+  ["c", "54,52 60,58 60,84 54,90 48,84 48,58"],
+  ["d", "10,84 50,84 56,90 50,96 10,96 4,90"],
+  ["e", "0,58 6,52 12,58 12,84 6,90 0,84"],
+  ["f", "0,18 6,12 12,18 12,44 6,50 0,44"],
+  ["g", "10,44 50,44 56,50 50,56 10,56 4,50"],
+];
+
+function SevenSegmentDigit({ value }) {
+  const activeSegments = DIGIT_SEGMENTS[value] ?? "";
+
+  return (
+    <svg className="seven-segment-digit" viewBox="0 0 60 100">
+      {SEGMENTS.map(([segment, points]) => (
+        <polygon
+          key={segment}
+          className={
+            "seven-segment" +
+            (activeSegments.includes(segment) ? " is-on" : "")
+          }
+          points={points}
+        />
+      ))}
+    </svg>
+  );
+}
+
+function SevenSegmentDisplay({ value }) {
+  return (
+    <span className="seven-segment-display" aria-hidden="true">
+      {value.split("").map((character, index) =>
+        character === ":" ? (
+          <span className="seven-segment-colon" key={"colon-" + index} />
+        ) : (
+          <SevenSegmentDigit value={character} key={index} />
+        ),
+      )}
+    </span>
+  );
+}
+
 const LINES = {
   idle: [
     "Yesterday: coffee. Today: countdown. Blockers: optimism.",
@@ -75,6 +140,8 @@ export function App() {
   const [lineIndex, setLineIndex] = useState(0);
   const [reactionOverride, setReactionOverride] = useState(null);
   const [mayaMoment, setMayaMoment] = useState("focused");
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [callEnded, setCallEnded] = useState(false);
   const [exactMinutes, setExactMinutes] = useState(
     String(Math.floor(session.durationMs / 60_000)),
   );
@@ -90,30 +157,39 @@ export function App() {
   const progress = session.durationMs
     ? Math.min(1, remainingMs / session.durationMs)
     : 0;
-
+  const phase =
+    session.status === "paused"
+      ? "paused"
+      : session.status === "done"
+        ? "done"
+        : session.status !== "running"
+          ? "idle"
+          : remainingMs <= 10_000
+            ? "final"
+            : progress <= 0.25
+              ? "warning"
+              : progress <= 0.55
+                ? "half"
+                : "calm";
   const artState =
-    session.status === "done"
+    phase === "done"
       ? "celebrate"
-      : session.status === "running" && progress <= 0.3
+      : phase === "warning" || phase === "final"
         ? "warning"
-        : "focused";
+        : phase === "paused"
+          ? "glance"
+          : "focused";
 
   useEffect(() => {
-    [
-      "focused",
-      "blink",
-      "glance",
-      "nod",
-      "warning",
-      "celebrate",
-    ].forEach((name) => {
-      const image = new Image();
-      image.src = "/assets/timekeeper-" + name + ".png";
-    });
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
   }, []);
 
   useEffect(() => {
-    if (artState !== "focused") {
+    if (artState !== "focused" || prefersReducedMotion) {
       setMayaMoment("focused");
       return undefined;
     }
@@ -127,7 +203,15 @@ export function App() {
         () => {
           if (cancelled) return;
           const roll = Math.random();
-          const moment = roll < 0.62 ? "blink" : roll < 0.84 ? "glance" : "nod";
+          const isCheckingTime = phase === "half";
+          const blinkThreshold = isCheckingTime ? 0.45 : 0.62;
+          const glanceThreshold = isCheckingTime ? 0.82 : 0.84;
+          const moment =
+            roll < blinkThreshold
+              ? "blink"
+              : roll < glanceThreshold
+                ? "glance"
+                : "nod";
           setMayaMoment(moment);
           returnTimer = window.setTimeout(
             () => {
@@ -148,7 +232,7 @@ export function App() {
       window.clearTimeout(momentTimer);
       window.clearTimeout(returnTimer);
     };
-  }, [artState]);
+  }, [artState, phase, prefersReducedMotion]);
 
   useEffect(() => {
     if (session.status !== "running") return undefined;
@@ -234,6 +318,7 @@ export function App() {
   }
 
   function followPointer(event) {
+    if (prefersReducedMotion) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
     const y = (event.clientY - bounds.top) / bounds.height - 0.5;
@@ -265,23 +350,12 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    let nextKey = "idle";
-    if (session.status === "paused") nextKey = "paused";
-    else if (session.status === "done") nextKey = "done";
-    else if (session.status === "running" && remainingMs <= 10_000)
-      nextKey = "final";
-    else if (session.status === "running" && progress <= 0.25)
-      nextKey = "warning";
-    else if (session.status === "running" && progress <= 0.55)
-      nextKey = "half";
-    else if (session.status === "running") nextKey = "calm";
-
-    nextKey = reactionOverride ?? nextKey;
+    const nextKey = reactionOverride ?? phase;
     if (nextKey !== lineKey) {
       setLineKey(nextKey);
       setLineIndex((current) => (current + 1) % LINES[nextKey].length);
     }
-  }, [lineKey, progress, reactionOverride, remainingMs, session.status]);
+  }, [lineKey, phase, reactionOverride]);
 
   useEffect(() => {
     if (!reactionOverride) return undefined;
@@ -312,55 +386,101 @@ export function App() {
     changeDuration(minutes * 60 + seconds);
   }
 
+  function endCall() {
+    const current = sessionRef.current;
+    if (current.status === "running") {
+      update(pauseTimer(current, Date.now()));
+    }
+    setCallEnded(true);
+    window.setTimeout(() => window.close(), 0);
+  }
+
+  function rejoinCall() {
+    update(resetTimer(sessionRef.current));
+    setCallEnded(false);
+  }
+
   const visibleMoment = artState === "focused" ? mayaMoment : artState;
-  const artSource = "/assets/timekeeper-" + visibleMoment + ".png";
   const statusLabel =
     session.status === "idle" ? "READY" : session.status.toUpperCase();
+  const displayTime = formatTime(remainingMs);
+
+  if (callEnded) {
+    return (
+      <main className="call-ended">
+        <img
+          src="/assets/timekeeper-celebrate.png"
+          alt="Maya celebrating the completed standup"
+        />
+        <div>
+          <span className="ended-kicker">CALL ENDED</span>
+          <h1>Standup wrapped.</h1>
+          <p>Maya has released the timebox back into the wild.</p>
+          <button onClick={rejoinCall}>Rejoin</button>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className={"app state-" + session.status + " art-" + artState}>
+    <main
+      className={
+        "app state-" + session.status + " art-" + artState + " phase-" + phase
+      }
+    >
       <header className="topbar">
         <a className="brand" href="#timer" aria-label="Standup Timer home">
           <span className="brand-mark">ST</span>
           <span>STANDUP TIMER</span>
         </a>
-        <span className="maya-duty">MAYA IS ON DUTY</span>
+        <span className="maya-duty">MAYA · CONNECTED</span>
       </header>
 
       <section className="timer-card" id="timer" aria-label="Standup timer">
-        <div className="chapter-label">CHAPTER 01 · THE DAILY TIMEBOX</div>
         <div
           className="manga-stage"
           onPointerMove={followPointer}
           onPointerLeave={centerMaya}
         >
+          <div className="call-status">
+            <span aria-hidden="true" /> MAYA · LIVE
+          </div>
           <div className={"maya-wrap maya-" + visibleMoment}>
-            <img
-              key={artSource}
-              className="timekeeper-art"
-              src={artSource}
-              alt="Maya, an original manga timekeeper, holding a large orange kitchen timer"
-            />
+            <div className="maya-scene">
+              <div
+                className="maya-art-stack"
+                role="img"
+                aria-label="Maya, an original manga timekeeper, holding a large orange kitchen timer"
+              >
+                {ART_MOMENTS.map((moment) => (
+                  <img
+                    key={moment}
+                    className={
+                      "timekeeper-art" +
+                      (visibleMoment === moment ? " is-visible" : "")
+                    }
+                    src={"/assets/timekeeper-" + moment + ".png"}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                ))}
+              </div>
+
+              <div className="timer-face">
+                <span className="timer-status">{statusLabel}</span>
+                <output
+                  className="timer-output"
+                  aria-label={displayTime + " remaining"}
+                >
+                  <span className="sr-only">{displayTime}</span>
+                  <SevenSegmentDisplay value={displayTime} />
+                </output>
+              </div>
+            </div>
           </div>
           <div className="speech-bubble" aria-live="polite">
             <span className="bubble-kicker">MAYA SAYS</span>
             <strong>{LINES[lineKey][lineIndex % LINES[lineKey].length]}</strong>
-          </div>
-
-          <div className="timer-face">
-            <span className="timer-status">{statusLabel}</span>
-            <output aria-label={formatTime(remainingMs) + " remaining"}>
-              {formatTime(remainingMs)}
-            </output>
-            <div className="face-progress">
-              <span style={{ width: progress * 100 + "%" }} />
-            </div>
-          </div>
-
-          <div className="maya-card">
-            <span className="eyebrow">YOUR TIMEKEEPER</span>
-            <strong>MAYA</strong>
-            <span>Guarding the timebox</span>
           </div>
         </div>
 
@@ -376,6 +496,7 @@ export function App() {
                   }
                   onClick={() => changeDuration(seconds)}
                   disabled={session.status === "running"}
+                  aria-pressed={session.durationMs === seconds * 1000}
                 >
                   {seconds === 60 ? "1m" : seconds === 90 ? "1.5m" : "2m"}
                 </button>
@@ -384,46 +505,49 @@ export function App() {
           </div>
 
           <form className="exact-time" onSubmit={setExactTime}>
-            <span className="eyebrow">EXACT TIME</span>
+            <span className="eyebrow">CUSTOM</span>
             <label>
+              <span>min</span>
               <input
                 type="number"
                 min="0"
                 inputMode="numeric"
+                aria-label="Minutes"
                 value={exactMinutes}
                 onChange={(event) => setExactMinutes(event.target.value)}
                 disabled={session.status === "running"}
               />
-              <span>min</span>
             </label>
             <span className="time-colon">:</span>
             <label>
+              <span>sec</span>
               <input
                 type="number"
                 min="0"
                 max="59"
                 inputMode="numeric"
+                aria-label="Seconds"
                 value={exactSeconds}
                 onChange={(event) => setExactSeconds(event.target.value)}
                 disabled={session.status === "running"}
               />
-              <span>sec</span>
             </label>
             <button type="submit" disabled={session.status === "running"}>
-              Set
+              Set time
             </button>
           </form>
-
-          <div className="adjust-time" aria-label="Adjust remaining time">
-            <span className="eyebrow">ADJUST</span>
-            <button onClick={() => adjustTime(-30_000)}>− 30s</button>
-            <button onClick={() => adjustTime(30_000)}>+ 30s</button>
-          </div>
         </div>
 
-        <div className="main-controls">
+        <nav className="main-controls" aria-label="Timer call controls">
           <button
-            className="secondary"
+            className="call-control"
+            onClick={() => adjustTime(-30_000)}
+            aria-label="Subtract 30 seconds"
+          >
+            −30s
+          </button>
+          <button
+            className="call-control"
             onClick={() => update(resetTimer(sessionRef.current))}
           >
             Reset
@@ -437,13 +561,18 @@ export function App() {
                   ? "Again"
                   : "Start"}
           </button>
-        </div>
+          <button
+            className="call-control add-control"
+            onClick={() => adjustTime(30_000)}
+            aria-label="Add 30 seconds"
+          >
+            +30s
+          </button>
+          <button className="call-control hangup" onClick={endCall}>
+            Hang up
+          </button>
+        </nav>
       </section>
-
-      <footer>
-        <span>ONE TIMER. ZERO DASHBOARDS.</span>
-        <span>Tip: the Chrome extension keeps Maya over any board.</span>
-      </footer>
     </main>
   );
 }
