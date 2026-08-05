@@ -114,13 +114,14 @@
   // ---------------------------------------------------------------- artwork + display geometry
   const FRAME_NAMES = [
     "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
-    "warning", "celebrate",
+    "yawn", "pleading", "sigh", "warning", "celebrate",
   ];
   // the aligned frames share one composition, so blends between them read as
   // facial motion; warning and celebrate are deliberate manga panel cuts.
   const FRAME_GROUP = {
     focused: "aligned", blink: "aligned", glance: "aligned", nod: "aligned",
     "talk-a": "aligned", "talk-b": "aligned", skeptic: "aligned", wink: "aligned",
+    yawn: "aligned", pleading: "aligned", sigh: "aligned",
     warning: "warning", celebrate: "celebrate",
   };
   const MICRO_TIMING = {
@@ -129,6 +130,9 @@
     nod: { inMs: 180, holdMs: () => 700, outMs: 200 },
     skeptic: { inMs: 200, holdMs: () => 1_300 + Math.random() * 900, outMs: 220 },
     wink: { inMs: 80, holdMs: () => 600, outMs: 120 },
+    yawn: { inMs: 240, holdMs: () => 1_300 + Math.random() * 400, outMs: 260 },
+    pleading: { inMs: 200, holdMs: () => 1_100 + Math.random() * 600, outMs: 220 },
+    sigh: { inMs: 220, holdMs: () => 1_500 + Math.random() * 500, outMs: 260 },
   };
   const DIGIT_SEGMENTS = {
     0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg",
@@ -316,9 +320,14 @@
       .step-button:active { background: #4a4d51; }
       .stepper-readout { display: grid; justify-items: center; gap: 2px; }
       .stepper-time {
-        color: #f1f3f4; font-size: 22px; font-weight: 750;
+        width: 100%; padding: 0; text-align: center;
+        color: #f1f3f4; background: transparent; border: 0; border-radius: 8px;
+        font-size: 22px; font-weight: 750;
         font-variant-numeric: tabular-nums; letter-spacing: .04em;
+        caret-color: #a8c7fa;
       }
+      .stepper-time:hover { background: rgba(255,255,255,.05); }
+      .stepper-time:focus { background: rgba(255,255,255,.08); outline: 2px solid #a8c7fa; outline-offset: 1px; }
       .stepper-hint {
         color: #9aa0a6; font-size: 9px; font-weight: 700;
         letter-spacing: .09em; text-transform: uppercase;
@@ -339,6 +348,7 @@
       .call-control:hover { background: #4a4d51; }
       .call-control:active { transform: scale(.94); }
       .call-control.toggle { color: #202124; background: var(--accent); font-size: 18px; }
+      .call-control.setup-toggle svg { width: 20px; height: 20px; fill: currentColor; }
       .call-control.setup-toggle[aria-expanded="true"] { color: #202124; background: #a8c7fa; }
       .call-control.hangup { width: 58px; border-radius: 999px; background: #d93025; font-size: 21px; }
       .call-control.hangup svg { width: 24px; height: 24px; fill: currentColor; }
@@ -390,8 +400,8 @@
         <div class="stepper" aria-label="Adjust timer duration">
           <button class="step-button" type="button" data-step-ms="-15000" aria-label="Shorten timebox by 15 seconds">−15s</button>
           <span class="stepper-readout">
-            <output class="stepper-time">01:30</output>
-            <span class="stepper-hint">timebox · hold to repeat</span>
+            <input class="stepper-time" inputmode="numeric" autocomplete="off" value="01:30" aria-label="Timebox duration. Type a time like 2:30, or 230, then press Enter">
+            <span class="stepper-hint">type a time · hold to repeat</span>
           </span>
           <button class="step-button" type="button" data-step-ms="15000" aria-label="Extend timebox by 15 seconds">+15s</button>
         </div>
@@ -402,7 +412,7 @@
         <span class="control-stack"><button class="call-control toggle" type="button" data-action="toggle" aria-label="Start timer"><span class="toggle-icon" aria-hidden="true">▶</span></button><span class="control-caption toggle-caption">start</span></span>
         <span class="control-stack"><button class="call-control" type="button" data-action="add-30" aria-label="Add 30 seconds">+30</button><span class="control-caption">seconds</span></span>
         <span class="control-stack"><button class="call-control" type="button" data-action="reset" aria-label="Reset timer">↺</button><span class="control-caption">reset</span></span>
-        <span class="control-stack"><button class="call-control setup-toggle" type="button" aria-label="Set timer duration" aria-expanded="false" aria-controls="maya-timer-setup">⌚</button><span class="control-caption">set</span></span>
+        <span class="control-stack"><button class="call-control setup-toggle" type="button" aria-label="Set timer duration" aria-expanded="false" aria-controls="maya-timer-setup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 1H9v2h6V1Zm-4 13h2V8h-2v6Zm8.03-6.61 1.42-1.42-1.41-1.41-1.42 1.42A8.96 8.96 0 0 0 12 4a9 9 0 1 0 9 9c0-2.12-.74-4.07-1.97-5.61ZM12 20a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg></button><span class="control-caption">set</span></span>
         <span class="control-stack"><button class="call-control hangup" type="button" aria-label="Hang up and close timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 16.2 2.7 14.4c-.7-.7-.6-1.9.2-2.5a14.9 14.9 0 0 1 18.2 0c.8.6.9 1.8.2 2.5l-1.8 1.8a1.7 1.7 0 0 1-2 .3l-2.3-1.2a1.7 1.7 0 0 1-.9-1.5v-1.1a10.6 10.6 0 0 0-4.6 0v1.1c0 .6-.3 1.2-.9 1.5l-2.3 1.2a1.7 1.7 0 0 1-2-.3Z"/></svg></button><span class="control-caption">hang up</span></span>
       </nav>
       <div class="connection-message" role="status">Reload this page to reconnect Maya after updating the extension.</div>
@@ -470,7 +480,11 @@
     const status = state?.status ?? "idle";
     if (status === "idle") return "idle";
     if (status === "paused") return "paused";
-    if (status === "done") return overtime(now) < 6_000 ? "celebrate" : "overtime";
+    if (status === "done") {
+      const overtimeMs = overtime(now);
+      if (overtimeMs < 6_000) return "celebrate";
+      return overtimeMs < 66_000 ? "overtime" : "overtimeSettled";
+    }
     const milliseconds = remaining(now);
     if (milliseconds <= 10_000) return "final";
     const progress = state.durationMs ? milliseconds / state.durationMs : 0;
@@ -603,7 +617,7 @@
     bounce: 0,
     bounceVelocity: 0,
     nagPulse: 0,
-    nodQueued: false,
+    queuedMicro: null,
   };
 
   function moodFor(phase) {
@@ -612,12 +626,15 @@
     if (phase === "half") return "skeptic";
     if (phase === "celebrate") return "celebrate";
     if (phase === "overtime") return "overtime";
+    if (phase === "overtimeSettled") return "overtimeSettled";
     if (phase === "paused") return "paused";
+    if (phase === "idle") return "idle";
     return "calm";
   }
 
   function baseFrameFor(mood) {
     if (mood === "panic" || mood === "urgent" || mood === "overtime") return "warning";
+    // settled overtime returns to the aligned base: resignation, not panic
     if (mood === "celebrate") return "celebrate";
     return "focused";
   }
@@ -637,7 +654,11 @@
   }
 
   function queueNod() {
-    motion.nodQueued = true;
+    motion.queuedMicro = Math.random() < 0.4 ? "wink" : "nod";
+  }
+
+  function queueMicro(frame) {
+    motion.queuedMicro = frame;
   }
 
   function scheduleMicro(now) {
@@ -648,13 +669,17 @@
     }
     let frame;
     const roll = Math.random();
-    if (motion.nodQueued) {
-      frame = roll < 0.4 && frames.wink?.naturalWidth ? "wink" : "nod";
-      motion.nodQueued = false;
+    if (motion.queuedMicro) {
+      frame = motion.queuedMicro;
+      motion.queuedMicro = null;
     } else if (mood === "paused") {
-      frame = roll < 0.3 ? "blink" : roll < 0.85 ? "glance" : "nod";
+      frame = roll < 0.25 ? "blink" : roll < 0.55 ? "glance" : roll < 0.8 ? "pleading" : "nod";
     } else if (mood === "skeptic") {
-      frame = roll < 0.3 ? "blink" : roll < 0.5 ? "glance" : roll < 0.85 ? "skeptic" : "nod";
+      frame = roll < 0.3 ? "blink" : roll < 0.5 ? "glance" : roll < 0.78 ? "skeptic" : roll < 0.9 ? "pleading" : "nod";
+    } else if (mood === "idle") {
+      frame = roll < 0.38 ? "blink" : roll < 0.58 ? "glance" : roll < 0.72 ? "yawn" : roll < 0.82 ? "skeptic" : roll < 0.94 ? "nod" : "wink";
+    } else if (mood === "overtimeSettled") {
+      frame = roll < 0.2 ? "blink" : roll < 0.5 ? "sigh" : roll < 0.7 ? "glance" : roll < 0.85 ? "skeptic" : "pleading";
     } else {
       frame = roll < 0.5 ? "blink" : roll < 0.7 ? "glance" : roll < 0.78 ? "skeptic" : roll < 0.92 ? "nod" : "wink";
     }
@@ -808,6 +833,7 @@
         mood === "panic" ? 1.6
         : mood === "urgent" ? 0.55
         : mood === "overtime" ? motion.nagPulse * 1.2
+        : mood === "overtimeSettled" ? motion.nagPulse * 0.7
         : 0;
       dx = sway + motion.pointerEased.x * 3.4 + (Math.random() - 0.5) * 2 * tremorMagnitude;
       dy = breath + motion.pointerEased.y * 2.2 + (Math.random() - 0.5) * 2 * tremorMagnitude;
@@ -953,6 +979,7 @@
         playNag(overtimeMinute);
         showCaption(overtimeMinute >= 3 ? "overtimeDeep" : "overtime");
         motion.nagPulse = 1;
+        if (overtimeMinute >= 2) queueMicro("sigh");
       }
       prevOvertimeMinute = overtimeMinute;
     } else {
@@ -1024,7 +1051,9 @@
     shadow.querySelectorAll(".preset").forEach((button) => {
       button.setAttribute("aria-pressed", String(Number(button.dataset.durationMs) === state?.durationMs));
     });
-    if (!stepping) stepperTime.textContent = formatTime(state?.durationMs ?? 90_000);
+    if (!stepping && shadow.activeElement !== stepperTime) {
+      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+    }
 
     if (status === "running" && remaining(now) <= 0 && !expirationSent) {
       expirationSent = true;
@@ -1174,7 +1203,7 @@
       pendingDurationMs = state?.durationMs ?? 90_000;
     }
     pendingDurationMs = Math.max(15_000, Math.min(5_999_000, pendingDurationMs + stepMs));
-    stepperTime.textContent = formatTime(pendingDurationMs);
+    stepperTime.value = formatTime(pendingDurationMs);
     window.clearTimeout(stepCommitTimeout);
     stepCommitTimeout = window.setTimeout(commitPendingDuration, 350);
   }
@@ -1190,7 +1219,7 @@
     const isOpen = !setup.classList.contains("is-open");
     setup.classList.toggle("is-open", isOpen);
     setupToggle.setAttribute("aria-expanded", String(isOpen));
-    if (isOpen) stepperTime.textContent = formatTime(state?.durationMs ?? 90_000);
+    if (isOpen) stepperTime.value = formatTime(state?.durationMs ?? 90_000);
     window.requestAnimationFrame(keepVisible);
   }
 
@@ -1217,6 +1246,69 @@
       applyStep(stepMs);
     }, { signal: listeners.signal });
   });
+
+  // typed time entry: "2:30", "230", or "90" all work, microwave-style
+  const stepperHint = shadow.querySelector(".stepper-hint");
+  const STEPPER_HINT_DEFAULT = stepperHint.textContent;
+
+  function parseTypedDuration(text) {
+    const cleaned = text.trim().replace(/[^0-9:.\s]/g, "");
+    if (!cleaned) return null;
+    const parts = cleaned.split(/[:.\s]+/).filter(Boolean);
+    let minutes = 0;
+    let seconds = 0;
+    if (parts.length >= 2) {
+      minutes = Number.parseInt(parts[0], 10) || 0;
+      seconds = Number.parseInt(parts[1], 10) || 0;
+    } else {
+      const digits = parts[0];
+      if (digits.length === 1) {
+        minutes = Number.parseInt(digits, 10) || 0;
+      } else if (digits.length === 2) {
+        seconds = Number.parseInt(digits, 10) || 0;
+      } else {
+        minutes = Number.parseInt(digits.slice(0, -2), 10) || 0;
+        seconds = Number.parseInt(digits.slice(-2), 10) || 0;
+      }
+    }
+    const totalSeconds = minutes * 60 + seconds;
+    if (!totalSeconds) return null;
+    return Math.max(5_000, Math.min(5_999_000, totalSeconds * 1000));
+  }
+
+  function commitTypedDuration() {
+    const parsed = parseTypedDuration(stepperTime.value);
+    stepperHint.textContent = STEPPER_HINT_DEFAULT;
+    if (parsed === null || parsed === state?.durationMs) {
+      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+      return;
+    }
+    stepperTime.value = formatTime(parsed);
+    void sendTimerAction("set-duration", parsed);
+    showCaption("durationSet");
+    queueNod();
+  }
+
+  stepperTime.addEventListener("focus", () => stepperTime.select(), { signal: listeners.signal });
+  stepperTime.addEventListener("input", () => {
+    const parsed = parseTypedDuration(stepperTime.value);
+    stepperHint.textContent = parsed === null
+      ? STEPPER_HINT_DEFAULT
+      : `enter sets ${formatTime(parsed)}`;
+  }, { signal: listeners.signal });
+  stepperTime.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitTypedDuration();
+      stepperTime.blur();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      stepperTime.value = formatTime(state?.durationMs ?? 90_000);
+      stepperHint.textContent = STEPPER_HINT_DEFAULT;
+      stepperTime.blur();
+    }
+  }, { signal: listeners.signal });
+  stepperTime.addEventListener("blur", commitTypedDuration, { signal: listeners.signal });
 
   shadow.querySelectorAll("[data-duration-ms]").forEach((button) => {
     button.addEventListener("click", () => {

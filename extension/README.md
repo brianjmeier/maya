@@ -4,10 +4,11 @@ Maya is a self-contained Manifest V3 extension that adds a movable standup timer
 to the current webpage. It runs offline and does not depend on the Standup Timer
 website being open. Maya is drawn from the original manga artwork and never
 sits still: the frame continuously breathes, sways, and follows your pointer,
-she blinks, glances at the clock, nods, winks, and side-eyes through seamless
-blends between aligned frames, visibly mouths her Meet-style caption lines
-with talking frames, and cuts to dramatic warning and celebration panels as
-the timebox drains.
+she blinks, glances at the clock, nods, winks, side-eyes, yawns before the
+meeting starts, pleads for a wrap-up, and sighs through long overtime via
+seamless blends between aligned frames, visibly mouths her Meet-style caption
+lines with talking frames, and cuts to dramatic warning and celebration
+panels as the timebox drains.
 
 ## Load unpacked
 
@@ -31,8 +32,9 @@ page cannot host the overlay.
   starts politely pestering. Only **Hang up** ends the call.
 - During overtime, **+30** grants thirty more seconds and resumes the countdown;
   **again** restarts the full timebox; **reset** returns to idle.
-- The setup tray (⌚) offers 1:00 / 1:30 / 2:00 presets plus a ±15s stepper.
-  Steps apply immediately — hold a stepper button to repeat.
+- The setup tray offers 1:00 / 1:30 / 2:00 presets plus a ±15s stepper.
+  Steps apply immediately — hold a stepper button to repeat. The big readout
+  is typeable: enter `2:30`, `230`, or `90` and press Enter.
 - Drag the handle to move Maya. When the handle is focused, arrow keys move the
   overlay by 10 pixels and Shift+Arrow moves it by 40 pixels.
 - State and position stay synchronized across open overlays through

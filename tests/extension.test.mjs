@@ -48,7 +48,7 @@ test("manifest icons and all six Maya frames exist", async () => {
 
   for (const frame of [
     "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
-    "warning", "celebrate",
+    "yawn", "pleading", "sigh", "warning", "celebrate",
   ]) {
     await access(new URL(`assets/maya-${frame}.webp`, extensionUrl));
   }
@@ -155,12 +155,13 @@ test("overlay is a timer-only Meet-style surface with a living Maya", async () =
   assert.match(overlay, /chrome\.runtime\.getURL\(`assets\/maya-\$\{name\}\.webp`\)/);
   for (const frame of [
     "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
-    "warning", "celebrate",
+    "yawn", "pleading", "sigh", "warning", "celebrate",
   ]) {
     assert.match(overlay, new RegExp(`"${frame}"`));
   }
   assert.match(overlay, /FRAME_GROUP/);
   assert.match(overlay, /talkUntil/);
+  assert.match(overlay, /overtimeSettled/);
   assert.match(overlay, /DISPLAY_QUADS/);
   assert.match(overlay, /function mapDisplayPoint/);
   assert.match(overlay, /flashAlpha/);
@@ -194,13 +195,15 @@ test("overlay is a timer-only Meet-style surface with a living Maya", async () =
   assert.match(overlay, /DIGIT_COLORS/);
   assert.match(overlay, /over by \$\{minutes\} minutes/);
 
-  // set UI: presets plus a hold-to-repeat stepper, no form inputs
+  // set UI: presets, a hold-to-repeat stepper, and a typeable readout
   assert.match(overlay, /data-duration-ms="60000"/);
   assert.match(overlay, /data-duration-ms="90000"/);
   assert.match(overlay, /data-duration-ms="120000"/);
   assert.match(overlay, /data-step-ms="-15000"/);
   assert.match(overlay, /data-step-ms="15000"/);
-  assert.doesNotMatch(overlay, /name="minutes"|name="seconds"|<input/);
+  assert.match(overlay, /<input class="stepper-time" inputmode="numeric"/);
+  assert.match(overlay, /parseTypedDuration/);
+  assert.doesNotMatch(overlay, /name="minutes"|name="seconds"|<form/);
 
   // timer-only surface and call chrome
   assert.doesNotMatch(overlay, /class="progress"|participant-list|people-list/);
