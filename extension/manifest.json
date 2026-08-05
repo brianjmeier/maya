@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Standup Timer Overlay",
+  "version": "1.0.0",
+  "description": "A draggable, synced standup countdown that floats above your board.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Show Standup Timer"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:4173/*",
+        "http://localhost:5173/*",
+        "http://terminal.local:4173/*"
+      ],
+      "js": ["web-bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
