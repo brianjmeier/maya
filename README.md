@@ -6,7 +6,7 @@
 
 Maya is a lively manga standup timer that stays visible over the meeting or board you are already using. She holds the clock, reacts as the timebox drains, speaks through Meet-style captions, and keeps the product deliberately focused on one job: the timer.
 
-> **Chrome Web Store status:** Maya 1.1.1 has been submitted and is awaiting review. Until the listing is approved, install the extension unpacked using the command below.
+> **Chrome Web Store status:** Maya 1.1.2 has been submitted and is awaiting review. Until the listing is approved, install the extension unpacked using the command below.
 
 ![Maya running over a standup board](store-listing/assets/screenshot-2.png)
 
