@@ -4,9 +4,10 @@ Maya is a self-contained Manifest V3 extension that adds a movable standup timer
 to the current webpage. It runs offline and does not depend on the Standup Timer
 website being open. Maya is drawn from the original manga artwork and never
 sits still: the frame continuously breathes, sways, and follows your pointer,
-she blinks, glances at the clock, and nods through seamless blends between
-aligned frames, comments on the meeting through Meet-style captions, and cuts
-to dramatic warning and celebration panels as the timebox drains.
+she blinks, glances at the clock, nods, winks, and side-eyes through seamless
+blends between aligned frames, visibly mouths her Meet-style caption lines
+with talking frames, and cuts to dramatic warning and celebration panels as
+the timebox drains.
 
 ## Load unpacked
 

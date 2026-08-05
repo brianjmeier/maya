@@ -112,12 +112,23 @@
   };
 
   // ---------------------------------------------------------------- artwork + display geometry
-  const FRAME_NAMES = ["focused", "blink", "glance", "nod", "warning", "celebrate"];
-  // focused/blink/glance/nod share one composition, so blends between them read
-  // as facial motion; warning and celebrate are deliberate manga panel cuts.
+  const FRAME_NAMES = [
+    "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
+    "warning", "celebrate",
+  ];
+  // the aligned frames share one composition, so blends between them read as
+  // facial motion; warning and celebrate are deliberate manga panel cuts.
   const FRAME_GROUP = {
     focused: "aligned", blink: "aligned", glance: "aligned", nod: "aligned",
+    "talk-a": "aligned", "talk-b": "aligned", skeptic: "aligned", wink: "aligned",
     warning: "warning", celebrate: "celebrate",
+  };
+  const MICRO_TIMING = {
+    blink: { inMs: 70, holdMs: () => 90, outMs: 90 },
+    glance: { inMs: 180, holdMs: () => 950 + Math.random() * 700, outMs: 200 },
+    nod: { inMs: 180, holdMs: () => 700, outMs: 200 },
+    skeptic: { inMs: 200, holdMs: () => 1_300 + Math.random() * 900, outMs: 220 },
+    wink: { inMs: 80, holdMs: () => 600, outMs: 120 },
   };
   const DIGIT_SEGMENTS = {
     0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg",
@@ -549,6 +560,7 @@
   const lastLineIndex = {};
   let captionTimeout = 0;
   let lastCaptionAt = 0;
+  let talkUntil = 0;
 
   function pickLine(key) {
     const pool = LINES[key] ?? [];
@@ -568,6 +580,7 @@
     captionText.textContent = line;
     captionBox.classList.add("is-visible");
     lastCaptionAt = performance.now();
+    talkUntil = performance.now() + Math.min(holdMs - 1_200, 700 + line.length * 42);
     window.clearTimeout(captionTimeout);
     captionTimeout = window.setTimeout(() => {
       captionBox.classList.remove("is-visible");
@@ -636,29 +649,37 @@
     let frame;
     const roll = Math.random();
     if (motion.nodQueued) {
-      frame = "nod";
+      frame = roll < 0.4 && frames.wink?.naturalWidth ? "wink" : "nod";
       motion.nodQueued = false;
     } else if (mood === "paused") {
       frame = roll < 0.3 ? "blink" : roll < 0.85 ? "glance" : "nod";
     } else if (mood === "skeptic") {
-      frame = roll < 0.42 ? "blink" : roll < 0.8 ? "glance" : "nod";
+      frame = roll < 0.3 ? "blink" : roll < 0.5 ? "glance" : roll < 0.85 ? "skeptic" : "nod";
     } else {
-      frame = roll < 0.55 ? "blink" : roll < 0.78 ? "glance" : "nod";
+      frame = roll < 0.5 ? "blink" : roll < 0.7 ? "glance" : roll < 0.78 ? "skeptic" : roll < 0.92 ? "nod" : "wink";
     }
-    const isBlink = frame === "blink";
+    if (!frames[frame]?.naturalWidth) frame = "blink";
+    const timing = MICRO_TIMING[frame];
     motion.micro = {
       frame,
       phase: "in",
       startedAt: now,
       alpha: 0,
-      inMs: isBlink ? 70 : 180,
-      holdMs: isBlink ? 90 : frame === "glance" ? 950 + Math.random() * 700 : 700,
-      outMs: isBlink ? 90 : 200,
+      inMs: timing.inMs,
+      holdMs: timing.holdMs(),
+      outMs: timing.outMs,
     };
   }
 
   function advanceMicro(now) {
     const micro = motion.micro;
+    if (now < talkUntil) {
+      // talking suspends ambient micro-expressions; the mouth has the floor
+      micro.phase = "idle";
+      micro.alpha = 0;
+      motion.microNextAt = Math.max(motion.microNextAt, talkUntil + 500);
+      return;
+    }
     if (micro.phase === "idle") {
       if (now >= motion.microNextAt) scheduleMicro(now);
       return;
@@ -819,12 +840,22 @@
     if (baseImage?.complete && baseImage.naturalWidth > 0) {
       sceneContext.drawImage(baseImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
     }
-    if (!reduced && FRAME_GROUP[motion.baseFrame] === "aligned" && motion.micro.alpha > 0) {
-      const microImage = frames[motion.micro.frame];
-      if (microImage?.complete && microImage.naturalWidth > 0) {
-        sceneContext.globalAlpha = motion.micro.alpha;
-        sceneContext.drawImage(microImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
-        sceneContext.globalAlpha = 1;
+    if (!reduced && FRAME_GROUP[motion.baseFrame] === "aligned") {
+      const talking = nowPerf < talkUntil;
+      if (talking) {
+        // mouth flaps: hard swaps through talk-a / talk-b / closed, like anime
+        const beat = Math.floor(nowPerf / 130) % 3;
+        const talkFrame = beat === 0 ? frames["talk-a"] : beat === 1 ? frames["talk-b"] : null;
+        if (talkFrame?.complete && talkFrame.naturalWidth > 0) {
+          sceneContext.drawImage(talkFrame, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
+        }
+      } else if (motion.micro.alpha > 0) {
+        const microImage = frames[motion.micro.frame];
+        if (microImage?.complete && microImage.naturalWidth > 0) {
+          sceneContext.globalAlpha = motion.micro.alpha;
+          sceneContext.drawImage(microImage, -pad, -pad, SCENE_SIZE.width + pad * 2, SCENE_SIZE.height + pad * 2);
+          sceneContext.globalAlpha = 1;
+        }
       }
     }
 

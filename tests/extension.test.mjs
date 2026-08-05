@@ -46,7 +46,10 @@ test("manifest icons and all six Maya frames exist", async () => {
     assert.equal(bytes.readUInt32BE(20), size);
   }
 
-  for (const frame of ["focused", "blink", "glance", "nod", "warning", "celebrate"]) {
+  for (const frame of [
+    "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
+    "warning", "celebrate",
+  ]) {
     await access(new URL(`assets/maya-${frame}.webp`, extensionUrl));
   }
 });
@@ -150,10 +153,14 @@ test("overlay is a timer-only Meet-style surface with a living Maya", async () =
   assert.match(overlay, /<canvas class="scene" width="640" height="427"/);
   assert.match(overlay, /sceneContext\.drawImage/);
   assert.match(overlay, /chrome\.runtime\.getURL\(`assets\/maya-\$\{name\}\.webp`\)/);
-  for (const frame of ["focused", "blink", "glance", "nod", "warning", "celebrate"]) {
+  for (const frame of [
+    "focused", "blink", "glance", "nod", "talk-a", "talk-b", "skeptic", "wink",
+    "warning", "celebrate",
+  ]) {
     assert.match(overlay, new RegExp(`"${frame}"`));
   }
   assert.match(overlay, /FRAME_GROUP/);
+  assert.match(overlay, /talkUntil/);
   assert.match(overlay, /DISPLAY_QUADS/);
   assert.match(overlay, /function mapDisplayPoint/);
   assert.match(overlay, /flashAlpha/);
