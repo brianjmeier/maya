@@ -50,18 +50,10 @@ Maya has no accounts, participant lists, meeting history, analytics, advertising
 
 ## Development
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. The repository is dependency-free — the extension under [`extension/`](extension/) is the entire product.
 
 ```bash
-npm install
 npm test
-npm run build
-```
-
-Run the local preview with:
-
-```bash
-npm run dev -- --host 0.0.0.0 --port 4173
 ```
 
 Build and verify the Chrome Web Store package with:
