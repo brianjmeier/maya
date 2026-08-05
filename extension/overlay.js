@@ -159,6 +159,14 @@
     [[-28, 56], [-8, 56], [-8, 63], [-28, 63]],
     [[-21.5, 49], [-14.5, 49], [-14.5, 70], [-21.5, 70]],
   ];
+  // the glyph hangs left of the digit layout, on the illustrated display face;
+  // the celebrate panel's window leaves less cream there, so the glyph tucks in
+  // tighter and slightly smaller to stay inside the bezel
+  const PLUS_PLACEMENT = {
+    aligned: { shiftX: 0, scale: 1 },
+    warning: { shiftX: 0, scale: 1 },
+    celebrate: { shiftX: 15, scale: 0.85 },
+  };
   const SCENE_SIZE = { width: 640, height: 427 };
   const DISPLAY_LAYOUT = { width: 220, height: 120 };
   const DIGIT_OFFSETS = [7, 57, 119, 169];
@@ -779,6 +787,7 @@
     if (cached) return cached;
 
     const quad = DISPLAY_QUADS[group];
+    const plus = PLUS_PLACEMENT[group];
     const mapPolygon = (points, offsetX = 0, scaleX = 1, offsetY = 0) =>
       points.map(([x, y]) => mapDisplayPoint(quad, x * scaleX + offsetX, y + offsetY));
     const geometry = {
@@ -791,7 +800,13 @@
       colonDots: [circlePoints(110, 45, 3.5), circlePoints(110, 76, 3.5)].map(
         (points) => mapPolygon(points),
       ),
-      plusGlyph: PLUS_GLYPH.map((points) => mapPolygon(points)),
+      // -18 / 59.5 is the plus glyph's center in layout space
+      plusGlyph: PLUS_GLYPH.map((points) =>
+        mapPolygon(points.map(([x, y]) => [
+          (x + 18) * plus.scale - 18 + plus.shiftX,
+          (y - 59.5) * plus.scale + 59.5,
+        ])),
+      ),
     };
     displayGeometryCache.set(group, geometry);
     return geometry;
